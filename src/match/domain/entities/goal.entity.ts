@@ -24,6 +24,11 @@ export class Goal {
     return new Goal({ ...props });
   }
 
+  /** Reidrata um gol a partir de um estado previamente persistido. */
+  static restore(props: GoalProps): Goal {
+    return new Goal({ ...props });
+  }
+
   get id(): string {
     return this.props.id;
   }

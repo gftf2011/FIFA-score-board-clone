@@ -1,0 +1,58 @@
+// Schema Prisma — usado para gerar o client e as migrations/tabelas.
+// As operações do repositório são feitas via raw queries ($queryRaw/$executeRaw).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id        String @id
+  name      String
+  shortName String @map("short_name")
+
+  @@map("teams")
+}
+
+model Match {
+  id         String    @id
+  status     String
+  minute     Int
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  updatedAt  DateTime  @map("updated_at")
+  sequence   Int
+  teamAId    String    @map("team_a_id")
+  teamBId    String    @map("team_b_id")
+  teamAGoals Int       @map("team_a_goals")
+  teamBGoals Int       @map("team_b_goals")
+
+  @@map("matches")
+}
+
+model Goal {
+  id         String @id
+  matchId    String @map("match_id")
+  playerId   String @map("player_id")
+  playerName String @map("player_name")
+  teamId     String @map("team_id")
+  minute     Int
+
+  @@index([matchId])
+  @@map("goals")
+}
+
+model MatchRecord {
+  matchId  String @map("match_id")
+  sequence Int
+  type     String
+  minute   Int
+  payload  Json
+
+  @@id([matchId, sequence])
+  @@map("match_records")
+}
