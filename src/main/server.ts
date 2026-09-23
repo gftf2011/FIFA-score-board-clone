@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { registerMatchModule } from '../match/main/match.module.js';
+import { prisma } from '../shared/infrastructure/prisma/prisma-client.js';
 
 function buildApp() {
   const app = Fastify({
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info(`Received ${signal}, shutting down...`);
     await app.close();
+    await prisma.$disconnect();
     process.exit(0);
   };
 
