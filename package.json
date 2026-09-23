@@ -2,7 +2,6 @@
   "name": "fifa-score-board-clone",
   "version": "1.0.0",
   "description": "FIFA score board clone built with Fastify and Clean Architecture",
-  "type": "module",
   "main": "dist/main/server.js",
   "engines": {
     "node": ">=20"

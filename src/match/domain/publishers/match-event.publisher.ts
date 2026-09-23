@@ -1,4 +1,4 @@
-import type { MatchEvent } from '../aggregates/match.aggregate.js';
+import type { MatchEvent } from '../aggregates/match.aggregate';
 
 /**
  * Contrato para publicação de eventos da partida (ex.: barramento de eventos,

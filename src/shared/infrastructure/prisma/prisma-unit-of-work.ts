@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
-import type { UnitOfWork } from '../../application/unit-of-work.js';
-import { runInTransactionContext } from './transaction-context.js';
+import type { UnitOfWork } from '../../application/unit-of-work';
+import { runInTransactionContext } from './transaction-context';
 
 /**
  * Implementação da {@link UnitOfWork} sobre uma transação interativa do Prisma.

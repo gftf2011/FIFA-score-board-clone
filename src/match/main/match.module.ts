@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { snsClient } from '../../shared/infrastructure/aws/sns-client.js';
-import { prisma } from '../../shared/infrastructure/prisma/prisma-client.js';
-import { loadMatchModuleConfig } from './config.js';
-import { makeMatchController } from './factories/match-controller.factory.js';
+import { snsClient } from '../../shared/infrastructure/aws/sns-client';
+import { prisma } from '../../shared/infrastructure/prisma/prisma-client';
+import { loadMatchModuleConfig } from './config';
+import { makeMatchController } from './factories/match-controller.factory';
 
 /**
  * Monta o módulo de partida com os recursos compartilhados (Prisma, SNS) e

@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
-import { registerMatchModule } from '../match/main/match.module.js';
-import { prisma } from '../shared/infrastructure/prisma/prisma-client.js';
+import { registerMatchModule } from '../match/main/match.module';
+import { prisma } from '../shared/infrastructure/prisma/prisma-client';
 
 function buildApp() {
   const app = Fastify({

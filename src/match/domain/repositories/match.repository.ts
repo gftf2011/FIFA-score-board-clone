@@ -1,4 +1,4 @@
-import type { Match } from '../aggregates/match.aggregate.js';
+import type { Match } from '../aggregates/match.aggregate';
 
 /**
  * Contrato de persistência do agregado {@link Match}. Faz parte do domínio; a

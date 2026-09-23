@@ -1,14 +1,14 @@
 import type { SNSClient } from '@aws-sdk/client-sns';
 import type { PrismaClient } from '@prisma/client';
-import { TransactionalUseCase } from '../../../shared/application/transactional-use-case.decorator.js';
-import type { UseCase } from '../../../shared/application/use-case.js';
-import { PrismaUnitOfWork } from '../../../shared/infrastructure/prisma/prisma-unit-of-work.js';
-import { FinishMatchUseCase } from '../../application/use-cases/finish-match.use-case.js';
-import { RegisterMatchEventUseCase } from '../../application/use-cases/register-match-event.use-case.js';
-import { StartMatchUseCase } from '../../application/use-cases/start-match.use-case.js';
-import { SnsMatchEventPublisher } from '../../infrastructure/publishers/sns-match-event.publisher.js';
-import { PrismaMatchRepository } from '../../infrastructure/repositories/prisma-match.repository.js';
-import { MatchController } from '../../presentation/http/match.controller.js';
+import { TransactionalUseCase } from '../../../shared/application/transactional-use-case.decorator';
+import type { UseCase } from '../../../shared/application/use-case';
+import { PrismaUnitOfWork } from '../../../shared/infrastructure/prisma/prisma-unit-of-work';
+import { FinishMatchUseCase } from '../../application/use-cases/finish-match.use-case';
+import { RegisterMatchEventUseCase } from '../../application/use-cases/register-match-event.use-case';
+import { StartMatchUseCase } from '../../application/use-cases/start-match.use-case';
+import { SnsMatchEventPublisher } from '../../infrastructure/publishers/sns-match-event.publisher';
+import { PrismaMatchRepository } from '../../infrastructure/repositories/prisma-match.repository';
+import { MatchController } from '../../presentation/http/match.controller';
 
 /** Dependências externas necessárias para montar o módulo de partida. */
 export interface MatchControllerDeps {

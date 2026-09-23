@@ -1,5 +1,5 @@
-import type { UnitOfWork } from './unit-of-work.js';
-import type { UseCase } from './use-case.js';
+import type { UnitOfWork } from './unit-of-work';
+import type { UseCase } from './use-case';
 
 /**
  * Decorator que envolve um caso de uso numa {@link UnitOfWork}, garantindo

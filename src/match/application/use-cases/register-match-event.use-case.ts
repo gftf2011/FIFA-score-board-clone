@@ -1,10 +1,10 @@
-import type { UseCase } from '../../../shared/application/use-case.js';
-import { MatchEventType, type Match } from '../../domain/aggregates/match.aggregate.js';
-import { Goal } from '../../domain/entities/goal.entity.js';
-import { Player, type PlayerPosition } from '../../domain/entities/player.entity.js';
-import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
-import type { MatchRepository } from '../../domain/repositories/match.repository.js';
-import { MatchNotFoundError } from '../errors/match-not-found.error.js';
+import type { UseCase } from '../../../shared/application/use-case';
+import { MatchEventType, type Match } from '../../domain/aggregates/match.aggregate';
+import { Goal } from '../../domain/entities/goal.entity';
+import { Player, type PlayerPosition } from '../../domain/entities/player.entity';
+import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher';
+import type { MatchRepository } from '../../domain/repositories/match.repository';
+import { MatchNotFoundError } from '../errors/match-not-found.error';
 
 /** Dados de um jogador envolvidos em um evento. */
 export interface PlayerData {

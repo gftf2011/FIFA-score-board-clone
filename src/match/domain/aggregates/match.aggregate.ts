@@ -5,11 +5,11 @@
  * a linha do tempo de eventos ocorridos. Toda alteração de estado passa por
  * métodos de comportamento, mantendo o placar sempre coerente com os gols.
  */
-import type { Competition } from '../entities/competition.entity.js';
-import type { Goal } from '../entities/goal.entity.js';
-import type { Player } from '../entities/player.entity.js';
-import type { Team } from '../entities/team.entity.js';
-import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
+import type { Competition } from '../entities/competition.entity';
+import type { Goal } from '../entities/goal.entity';
+import type { Player } from '../entities/player.entity';
+import type { Team } from '../entities/team.entity';
+import { InvalidMatchOperationError } from '../errors/match-domain.error';
 
 /** Status possíveis de uma partida ao longo do seu ciclo de vida. */
 export enum MatchStatus {

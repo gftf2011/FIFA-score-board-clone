@@ -5,12 +5,12 @@ import {
   type MatchEventType,
   type MatchScore,
   type MatchStatus,
-} from '../../domain/aggregates/match.aggregate.js';
-import { Competition, type CompetitionType } from '../../domain/entities/competition.entity.js';
-import { Goal } from '../../domain/entities/goal.entity.js';
-import { Team } from '../../domain/entities/team.entity.js';
-import type { MatchRepository } from '../../domain/repositories/match.repository.js';
-import { getTransactionClient } from '../../../shared/infrastructure/prisma/transaction-context.js';
+} from '../../domain/aggregates/match.aggregate';
+import { Competition, type CompetitionType } from '../../domain/entities/competition.entity';
+import { Goal } from '../../domain/entities/goal.entity';
+import { Team } from '../../domain/entities/team.entity';
+import type { MatchRepository } from '../../domain/repositories/match.repository';
+import { getTransactionClient } from '../../../shared/infrastructure/prisma/transaction-context';
 
 /** Client capaz de executar queries — base ou transação ambiente. */
 type PrismaExecutor = PrismaClient | Prisma.TransactionClient;

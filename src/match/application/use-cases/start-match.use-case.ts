@@ -1,7 +1,7 @@
-import type { UseCase } from '../../../shared/application/use-case.js';
-import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
-import type { MatchRepository } from '../../domain/repositories/match.repository.js';
-import { MatchNotFoundError } from '../errors/match-not-found.error.js';
+import type { UseCase } from '../../../shared/application/use-case';
+import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher';
+import type { MatchRepository } from '../../domain/repositories/match.repository';
+import { MatchNotFoundError } from '../errors/match-not-found.error';
 
 /** Entrada do caso de uso de iniciar partida. */
 export interface StartMatchInput {

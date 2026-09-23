@@ -1,4 +1,4 @@
-import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
+import { InvalidMatchOperationError } from '../errors/match-domain.error';
 
 /** Posição do jogador em campo. */
 export enum PlayerPosition {

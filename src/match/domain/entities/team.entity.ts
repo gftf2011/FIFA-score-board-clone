@@ -1,5 +1,5 @@
-import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
-import type { Player } from './player.entity.js';
+import { InvalidMatchOperationError } from '../errors/match-domain.error';
+import type { Player } from './player.entity';
 
 /** Dados que identificam e descrevem um time. */
 export interface TeamProps {

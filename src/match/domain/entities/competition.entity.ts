@@ -1,4 +1,4 @@
-import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
+import { InvalidMatchOperationError } from '../errors/match-domain.error';
 
 /** Categoria/formato geral da competição. */
 export enum CompetitionType {

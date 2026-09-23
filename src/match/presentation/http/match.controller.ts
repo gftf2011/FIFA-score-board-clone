@@ -1,11 +1,11 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { UseCase } from '../../../shared/application/use-case.js';
-import { DomainError } from '../../../shared/domain/errors/domain.error.js';
-import { MatchNotFoundError } from '../../application/errors/match-not-found.error.js';
-import type { FinishMatchInput } from '../../application/use-cases/finish-match.use-case.js';
-import type { RegisterMatchEventInput } from '../../application/use-cases/register-match-event.use-case.js';
-import type { StartMatchInput } from '../../application/use-cases/start-match.use-case.js';
-import { MatchEventType } from '../../domain/aggregates/match.aggregate.js';
+import type { UseCase } from '../../../shared/application/use-case';
+import { DomainError } from '../../../shared/domain/errors/domain.error';
+import { MatchNotFoundError } from '../../application/errors/match-not-found.error';
+import type { FinishMatchInput } from '../../application/use-cases/finish-match.use-case';
+import type { RegisterMatchEventInput } from '../../application/use-cases/register-match-event.use-case';
+import type { StartMatchInput } from '../../application/use-cases/start-match.use-case';
+import { MatchEventType } from '../../domain/aggregates/match.aggregate';
 
 interface MatchIdParams {
   readonly id: string;

@@ -1,6 +1,6 @@
 import { PublishCommand, type SNSClient } from '@aws-sdk/client-sns';
-import type { MatchEvent } from '../../domain/aggregates/match.aggregate.js';
-import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
+import type { MatchEvent } from '../../domain/aggregates/match.aggregate';
+import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher';
 
 /** Configuração do publisher SNS. */
 export interface SnsMatchEventPublisherOptions {

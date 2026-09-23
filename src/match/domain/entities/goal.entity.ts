@@ -1,4 +1,4 @@
-import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
+import { InvalidMatchOperationError } from '../errors/match-domain.error';
 
 /** Dados que identificam e descrevem um gol. */
 export interface GoalProps {
