@@ -8,13 +8,22 @@
   },
   "scripts": {
     "dev": "tsx watch src/main/server.ts",
+    "worker:dev": "tsx watch src/main/sqs-worker.ts",
+    "seed": "tsx prisma/seed.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "up": "docker compose up -d --build",
+    "up:seed": "docker compose up -d --build && docker compose run --rm seed",
+    "seed:docker": "docker compose run --rm seed",
+    "simulate": "bash scripts/simulate-match.sh",
+    "logs": "docker compose logs -f app",
+    "down": "docker compose down",
+    "down:clean": "docker compose down -v"
   },
   "keywords": [
     "fastify",
@@ -25,11 +34,14 @@
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-sns": "^3.1138.0",
+    "@aws-sdk/client-sqs": "^3.1138.0",
     "@prisma/client": "^6.19.3",
-    "fastify": "^5.12.5"
+    "fastify": "^5.12.5",
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/aws-lambda": "^8.10.163",
     "@types/node": "^26.6.2",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",

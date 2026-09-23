@@ -12,8 +12,8 @@ export interface StartMatchInput {
  * Caso de uso: inicia uma partida agendada.
  *
  * Carrega o agregado, aplica a regra de início (que também registra o evento
- * de partida iniciada), persiste o novo estado e publica o evento mais recente.
- * As invariantes de transição de status ficam no próprio agregado.
+ * de partida iniciada), persiste o novo estado e publica o evento mais recente
+ * no SNS. As invariantes de transição de status ficam no próprio agregado.
  */
 export class StartMatchUseCase implements UseCase<StartMatchInput, void> {
   constructor(

@@ -10,7 +10,7 @@ import { SnsMatchEventPublisher } from '../../../infrastructure/publishers/sns-m
 import { PrismaMatchRepository } from '../../../infrastructure/repositories/prisma-match.repository';
 import { MatchController } from '../../../presentation/http/match.controller';
 
-/** Dependências externas necessárias para montar o módulo de partida. */
+/** Dependências externas necessárias para montar a API de partida. */
 export interface MatchControllerDeps {
   readonly prisma: PrismaClient;
   readonly snsClient: SNSClient;
@@ -18,9 +18,9 @@ export interface MatchControllerDeps {
 }
 
 /**
- * Composition root do módulo de partida: instancia a implementação concreta dos
- * ports (repositório Prisma, publisher SNS), injeta nos casos de uso e monta o
- * controller HTTP.
+ * Composition root da API de partida: instancia o repositório (Prisma) e o
+ * publisher (SNS), injeta nos casos de uso e monta o controller HTTP. Os casos
+ * de uso publicam o evento diretamente no SNS após persistir a partida.
  */
 export function makeMatchController(deps: MatchControllerDeps): MatchController {
   const repository = new PrismaMatchRepository(deps.prisma);

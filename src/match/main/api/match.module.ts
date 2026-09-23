@@ -5,7 +5,7 @@ import { loadMatchModuleConfig } from './config';
 import { makeMatchController } from './factories/match-controller.factory';
 
 /**
- * Monta o módulo de partida com os recursos compartilhados (Prisma, SNS) e
+ * Monta a API de partida com os recursos compartilhados (Prisma, SNS) e
  * registra suas rotas na instância do Fastify.
  */
 export function registerMatchModule(app: FastifyInstance): void {

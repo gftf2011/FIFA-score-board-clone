@@ -57,7 +57,7 @@ export enum MatchEventType {
  * jogadores etc.).
  */
 export interface MatchEvent {
-  /** Identificador único do evento (usado, entre outros, como chave no outbox). */
+  /** Identificador único do evento (usado, entre outros, para deduplicação). */
   readonly id: string;
   readonly type: MatchEventType;
   /** Partida à qual o evento pertence. */

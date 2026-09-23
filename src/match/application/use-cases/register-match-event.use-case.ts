@@ -49,8 +49,9 @@ export type RegisterMatchEventInput = { readonly matchId: string } & (
 /**
  * Caso de uso: registra um evento na partida (gol, substituição e demais
  * eventos). Carrega o agregado, delega para o método de domínio correspondente
- * ao tipo, persiste e publica o evento mais recente. As invariantes (partida em
- * andamento, gol precedido de chute etc.) ficam no próprio agregado.
+ * ao tipo, persiste e publica o evento mais recente no SNS. As invariantes
+ * (partida em andamento, gol precedido de chute etc.) ficam no próprio
+ * agregado.
  */
 export class RegisterMatchEventUseCase implements UseCase<RegisterMatchEventInput, void> {
   constructor(

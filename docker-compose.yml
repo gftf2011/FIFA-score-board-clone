@@ -1,12 +1,11 @@
 services:
-  # Emulador de nuvem AWS (floci) — provê o SNS na porta 4566.
+  # Emulador de nuvem AWS (floci) — SNS/SQS na porta 4566.
   floci:
     image: floci/floci:latest
     ports:
       - '4566:4566'
 
-  # PostgreSQL — o "RDS" local. A app conecta direto via DATABASE_URL,
-  # exatamente como faria com o endpoint de um RDS real.
+  # PostgreSQL — o "RDS" local (fonte de verdade das partidas).
   postgres:
     image: postgres:16
     environment:
@@ -23,9 +22,20 @@ services:
       timeout: 5s
       retries: 10
 
-  # Cria o tópico SNS no floci (aguarda o floci ficar pronto).
+  # Redis — canal pub/sub onde a Lambda publica e o SSE assina.
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Cria o tópico SNS.
   sns-setup:
-    image: amazon/aws-cli:2
+    image: public.ecr.aws/aws-cli/aws-cli:latest
     depends_on:
       - floci
     environment:
@@ -39,12 +49,67 @@ services:
           echo "aguardando o floci..."; sleep 2;
         done
 
-  # A aplicação: aplica o schema no banco (prisma db push) e sobe o servidor.
-  app:
+  # Cria a fila SQS e a inscreve no tópico SNS (raw message delivery).
+  sqs-setup:
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    depends_on:
+      sns-setup:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -e
+        ENDPOINT=http://floci:4566
+        TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:match-events
+        aws --endpoint-url=$$ENDPOINT sqs create-queue --queue-name match-events-notify
+        QUEUE_URL=$$(aws --endpoint-url=$$ENDPOINT sqs get-queue-url --queue-name match-events-notify --output text --query QueueUrl)
+        QUEUE_ARN=$$(aws --endpoint-url=$$ENDPOINT sqs get-queue-attributes --queue-url "$$QUEUE_URL" --attribute-names QueueArn --output text --query Attributes.QueueArn)
+        aws --endpoint-url=$$ENDPOINT sns subscribe \
+          --topic-arn $$TOPIC_ARN \
+          --protocol sqs \
+          --notification-endpoint "$$QUEUE_ARN" \
+          --attributes RawMessageDelivery=true
+
+  # Worker: faz long-polling da fila SQS e roda o NotifyMatchEventConsumer
+  # (mesmo consumidor da Lambda). Atualiza a projeção no Redis e publica no
+  # pub/sub. Substitui a execução de Lambda no emulador localmente.
+  worker:
+    build: .
+    depends_on:
+      sqs-setup:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_QUEUE_NAME: match-events-notify
+      REDIS_URL: redis://redis:6379
+    command: node dist/main/sqs-worker.js
+
+  # Aplica as migrations (one-shot). App e seed dependem disto — não do db push.
+  migrate:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
+    command: npx prisma migrate deploy
+
+  # A API: sobe o servidor (migrations já aplicadas pelo serviço `migrate`).
+  app:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       sns-setup:
         condition: service_completed_successfully
     environment:
@@ -52,15 +117,53 @@ services:
       PORT: 3000
       NODE_ENV: production
       DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
-      # O AWS SDK v3 respeita AWS_ENDPOINT_URL e usa o floci em vez da AWS real.
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:match-events
-    command: sh -c "npx prisma db push --skip-generate && node dist/main/server.js"
+    command: node dist/main/server.js
     ports:
       - '3000:3000'
 
+  # Seed (sob demanda): `docker compose run --rm seed`. Não sobe no `up` normal.
+  seed:
+    build: .
+    profiles:
+      - seed
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
+    command: npm run seed
+
+  # GUI do Postgres — http://localhost:8080 (server: postgres, user/pass/db: fifa).
+  adminer:
+    image: adminer:latest
+    depends_on:
+      - postgres
+    ports:
+      - '8080:8080'
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+  # GUI do Redis — http://localhost:5540. Já sobe com a conexão pré-configurada
+  # para o Redis do compose (host: redis, porta: 6379).
+  redisinsight:
+    image: redis/redisinsight:latest
+    depends_on:
+      - redis
+    ports:
+      - '5540:5540'
+    environment:
+      RI_REDIS_HOST: redis
+      RI_REDIS_PORT: 6379
+      RI_REDIS_ALIAS: fifa
+      RI_ACCEPT_TERMS_AND_CONDITIONS: 'true'
+    volumes:
+      - redisinsight:/data
+
 volumes:
   pgdata:
+  redisinsight:

@@ -26,6 +26,17 @@ model Competition {
   @@map("competitions")
 }
 
+model Player {
+  id          String @id
+  teamId      String @map("team_id")
+  name        String
+  shirtNumber Int    @map("shirt_number")
+  position    String
+
+  @@index([teamId])
+  @@map("players")
+}
+
 model Match {
   id            String    @id
   competitionId String    @map("competition_id")
@@ -67,17 +78,4 @@ model MatchEvent {
   @@unique([matchId, sequence])
   @@index([competitionId])
   @@map("match_events")
-}
-
-model MatchEventOutbox {
-  id          String    @id
-  matchId     String    @map("match_id")
-  sequence    Int
-  type        String
-  payload     Json
-  createdAt   DateTime  @default(now()) @map("created_at")
-  publishedAt DateTime? @map("published_at")
-
-  @@index([publishedAt, createdAt])
-  @@map("match_events_outbox")
 }
