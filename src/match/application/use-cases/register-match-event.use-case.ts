@@ -1,11 +1,11 @@
-import { MatchRecordType, type Match } from '../../domain/aggregates/match.aggregate.js';
+import { MatchEventType, type Match } from '../../domain/aggregates/match.aggregate.js';
 import { Goal } from '../../domain/entities/goal.entity.js';
 import { Player, type PlayerPosition } from '../../domain/entities/player.entity.js';
-import type { MatchRecordPublisher } from '../../domain/publishers/match-record.publisher.js';
+import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
 import type { MatchRepository } from '../../domain/repositories/match.repository.js';
 import { MatchNotFoundError } from '../errors/match-not-found.error.js';
 
-/** Dados de um jogador envolvidos em um record. */
+/** Dados de um jogador envolvidos em um evento. */
 export interface PlayerData {
   readonly id: string;
   readonly name: string;
@@ -23,42 +23,42 @@ export interface GoalData {
   readonly minute: number;
 }
 
-/** Tipos de record associados a um único jogador. */
-type SinglePlayerRecordType =
-  | MatchRecordType.OwnGoal
-  | MatchRecordType.PenaltyKick
-  | MatchRecordType.PenaltyShootout
-  | MatchRecordType.CornerKick
-  | MatchRecordType.FreeKick
-  | MatchRecordType.DirectFreeKick
-  | MatchRecordType.IndirectFreeKick
-  | MatchRecordType.ThrowIn
-  | MatchRecordType.GoalKick;
+/** Tipos de evento associados a um único jogador. */
+type SinglePlayerEventType =
+  | MatchEventType.OwnGoal
+  | MatchEventType.PenaltyKick
+  | MatchEventType.PenaltyShootout
+  | MatchEventType.CornerKick
+  | MatchEventType.FreeKick
+  | MatchEventType.DirectFreeKick
+  | MatchEventType.IndirectFreeKick
+  | MatchEventType.ThrowIn
+  | MatchEventType.GoalKick;
 
-/** Entrada do caso de uso, discriminada pelo tipo de record. */
-export type RegisterMatchRecordInput = { readonly matchId: string } & (
-  | { readonly type: MatchRecordType.Goal; readonly goal: GoalData }
+/** Entrada do caso de uso, discriminada pelo tipo de evento. */
+export type RegisterMatchEventInput = { readonly matchId: string } & (
+  | { readonly type: MatchEventType.Goal; readonly goal: GoalData }
   | {
-      readonly type: MatchRecordType.Substitution;
+      readonly type: MatchEventType.Substitution;
       readonly playerOut: PlayerData;
       readonly playerIn: PlayerData;
     }
-  | { readonly type: SinglePlayerRecordType; readonly player: PlayerData }
+  | { readonly type: SinglePlayerEventType; readonly player: PlayerData }
 );
 
 /**
- * Caso de uso: registra um record na partida (gol, substituição e demais
+ * Caso de uso: registra um evento na partida (gol, substituição e demais
  * eventos). Carrega o agregado, delega para o método de domínio correspondente
- * ao tipo, persiste e publica o record mais recente. As invariantes (partida em
+ * ao tipo, persiste e publica o evento mais recente. As invariantes (partida em
  * andamento, gol precedido de chute etc.) ficam no próprio agregado.
  */
-export class RegisterMatchRecordUseCase {
+export class RegisterMatchEventUseCase {
   constructor(
     private readonly matchRepository: MatchRepository,
-    private readonly recordPublisher: MatchRecordPublisher,
+    private readonly eventPublisher: MatchEventPublisher,
   ) {}
 
-  async execute(input: RegisterMatchRecordInput): Promise<void> {
+  async execute(input: RegisterMatchEventInput): Promise<void> {
     const match = await this.matchRepository.findById(input.matchId);
     if (match === null) throw new MatchNotFoundError(input.matchId);
 
@@ -66,46 +66,46 @@ export class RegisterMatchRecordUseCase {
 
     await this.matchRepository.update(match);
 
-    const latestRecord = match.latestRecord;
-    if (latestRecord !== undefined) await this.recordPublisher.publish(latestRecord);
+    const latestEvent = match.latestEvent;
+    if (latestEvent !== undefined) await this.eventPublisher.publish(latestEvent);
   }
 
-  private apply(match: Match, input: RegisterMatchRecordInput): void {
+  private apply(match: Match, input: RegisterMatchEventInput): void {
     switch (input.type) {
-      case MatchRecordType.Goal:
+      case MatchEventType.Goal:
         match.registerGoal(this.buildGoal(input.goal));
         return;
-      case MatchRecordType.Substitution:
+      case MatchEventType.Substitution:
         match.registerSubstitution(
           this.buildPlayer(input.playerOut),
           this.buildPlayer(input.playerIn),
         );
         return;
-      case MatchRecordType.OwnGoal:
+      case MatchEventType.OwnGoal:
         match.registerOwnGoal(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.PenaltyKick:
+      case MatchEventType.PenaltyKick:
         match.registerPenaltyKick(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.PenaltyShootout:
+      case MatchEventType.PenaltyShootout:
         match.registerPenaltyShootout(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.CornerKick:
+      case MatchEventType.CornerKick:
         match.registerCornerKick(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.FreeKick:
+      case MatchEventType.FreeKick:
         match.registerFreeKick(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.DirectFreeKick:
+      case MatchEventType.DirectFreeKick:
         match.registerDirectFreeKick(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.IndirectFreeKick:
+      case MatchEventType.IndirectFreeKick:
         match.registerIndirectFreeKick(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.ThrowIn:
+      case MatchEventType.ThrowIn:
         match.registerThrowIn(this.buildPlayer(input.player));
         return;
-      case MatchRecordType.GoalKick:
+      case MatchEventType.GoalKick:
         match.registerGoalKick(this.buildPlayer(input.player));
         return;
     }

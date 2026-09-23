@@ -2,7 +2,7 @@
  * Agregado raiz de uma partida de futebol.
  *
  * Concentra o estado e as invariantes de uma partida: placar, gols marcados e
- * a linha do tempo de registros ocorridos. Toda alteração de estado passa por
+ * a linha do tempo de eventos ocorridos. Toda alteração de estado passa por
  * métodos de comportamento, mantendo o placar sempre coerente com os gols.
  */
 import type { Goal } from '../entities/goal.entity.js';
@@ -18,8 +18,8 @@ export enum MatchStatus {
   Finished = 'FINISHED',
 }
 
-/** Tipos de registro que podem ocorrer durante uma partida. */
-export enum MatchRecordType {
+/** Tipos de evento que podem ocorrer durante uma partida. */
+export enum MatchEventType {
   /** Gol. */
   Goal = 'GOAL',
   /** Gol contra. */
@@ -49,26 +49,26 @@ export enum MatchRecordType {
 }
 
 /**
- * Registro ocorrido durante a partida. O `type` é restrito aos tipos de
- * domínio ({@link MatchRecordType}), enquanto os demais campos são genéricos,
- * aceitando dados adicionais conforme o tipo do registro (autor, time,
+ * Evento ocorrido durante a partida. O `type` é restrito aos tipos de
+ * domínio ({@link MatchEventType}), enquanto os demais campos são genéricos,
+ * aceitando dados adicionais conforme o tipo do evento (autor, time,
  * jogadores etc.).
  */
-export interface MatchRecord {
-  readonly type: MatchRecordType;
+export interface MatchEvent {
+  readonly type: MatchEventType;
   readonly minute: number;
-  /** Ordem global de ocorrência do record na partida (1, 2, 3, ...). */
+  /** Ordem global de ocorrência do evento na partida (1, 2, 3, ...). */
   readonly sequence: number;
   readonly [key: string]: unknown;
 }
 
 /**
- * Dados para adicionar um novo record. O `minute` não é informado: ele é
+ * Dados para adicionar um novo evento. O `minute` não é informado: ele é
  * derivado do relógio da partida (tempo decorrido desde `startedAt`) no momento
- * em que o record é adicionado.
+ * em que o evento é adicionado.
  */
-export interface NewMatchRecord {
-  readonly type: MatchRecordType;
+export interface NewMatchEvent {
+  readonly type: MatchEventType;
   readonly [key: string]: unknown;
 }
 
@@ -102,23 +102,23 @@ export interface MatchProps {
   readonly finishedAt: Date | null;
   /** Momento da última modificação do agregado. */
   readonly updatedAt: Date;
-  /** Último sequence atribuído (topo da pilha de records). */
+  /** Último sequence atribuído (topo da pilha de eventos). */
   readonly sequence: number;
   readonly score: MatchScore;
   readonly goals: readonly Goal[];
-  readonly records: readonly MatchRecord[];
+  readonly events: readonly MatchEvent[];
 }
 
 export class Match {
-  /** Tipos de record considerados um "chute" que pode originar um gol. */
-  private static readonly KICK_RECORD_TYPES: ReadonlySet<MatchRecordType> = new Set([
-    MatchRecordType.PenaltyKick,
-    MatchRecordType.PenaltyShootout,
-    MatchRecordType.FreeKick,
-    MatchRecordType.DirectFreeKick,
-    MatchRecordType.IndirectFreeKick,
-    MatchRecordType.CornerKick,
-    MatchRecordType.GoalKick,
+  /** Tipos de evento considerados um "chute" que pode originar um gol. */
+  private static readonly KICK_EVENT_TYPES: ReadonlySet<MatchEventType> = new Set([
+    MatchEventType.PenaltyKick,
+    MatchEventType.PenaltyShootout,
+    MatchEventType.FreeKick,
+    MatchEventType.DirectFreeKick,
+    MatchEventType.IndirectFreeKick,
+    MatchEventType.CornerKick,
+    MatchEventType.GoalKick,
   ]);
 
   private _status: MatchStatus;
@@ -129,7 +129,7 @@ export class Match {
   private _sequence: number;
   private readonly _score: MatchScore;
   private readonly _goals: Goal[];
-  private readonly _records: MatchRecord[];
+  private readonly _events: MatchEvent[];
 
   private constructor(
     private readonly _id: string,
@@ -142,7 +142,7 @@ export class Match {
       sequence: number;
       score: MatchScore;
       goals: Goal[];
-      records: MatchRecord[];
+      events: MatchEvent[];
     },
   ) {
     this._status = props.status;
@@ -153,10 +153,10 @@ export class Match {
     this._sequence = props.sequence;
     this._score = props.score;
     this._goals = props.goals;
-    this._records = props.records;
+    this._events = props.events;
   }
 
-  /** Cria uma nova partida agendada, com placar zerado e sem registros. */
+  /** Cria uma nova partida agendada, com placar zerado e sem eventos. */
   static create(props: CreateMatchProps): Match {
     if (props.teamA.equals(props.teamB)) {
       throw new InvalidMatchOperationError(
@@ -176,7 +176,7 @@ export class Match {
         teamB: { team: props.teamB, goals: 0 },
       },
       goals: [],
-      records: [],
+      events: [],
     });
   }
 
@@ -194,7 +194,7 @@ export class Match {
         teamB: { team: props.score.teamB.team, goals: props.score.teamB.goals },
       },
       goals: [...props.goals],
-      records: [...props.records],
+      events: [...props.events],
     });
   }
 
@@ -222,7 +222,7 @@ export class Match {
     return this._updatedAt;
   }
 
-  /** Último sequence atribuído (topo da pilha de records). */
+  /** Último sequence atribuído (topo da pilha de eventos). */
   get sequence(): number {
     return this._sequence;
   }
@@ -238,13 +238,13 @@ export class Match {
     return [...this._goals];
   }
 
-  get records(): readonly MatchRecord[] {
-    return [...this._records];
+  get events(): readonly MatchEvent[] {
+    return [...this._events];
   }
 
-  /** Record no topo da pilha (mais recente), ou `undefined` se não houver. */
-  get latestRecord(): MatchRecord | undefined {
-    return this._records.at(-1);
+  /** Evento no topo da pilha (mais recente), ou `undefined` se não houver. */
+  get latestEvent(): MatchEvent | undefined {
+    return this._events.at(-1);
   }
 
   /** Inicia a partida. */
@@ -255,10 +255,10 @@ export class Match {
     this._status = MatchStatus.InProgress;
     this._startedAt = timestamp;
     this._updatedAt = timestamp;
-    this.addRecord({ type: MatchRecordType.MatchStarted });
+    this.addEvent({ type: MatchEventType.MatchStarted });
   }
 
-  /** Encerra a partida em andamento, registrando o record de encerramento. */
+  /** Encerra a partida em andamento, registrando o evento de encerramento. */
   finish(): void {
     if (this._status !== MatchStatus.InProgress)
       throw new InvalidMatchOperationError('Apenas uma partida em andamento pode ser encerrada.');
@@ -266,21 +266,21 @@ export class Match {
     this._status = MatchStatus.Finished;
     this._finishedAt = timestamp;
     this._updatedAt = timestamp;
-    this.addRecord({ type: MatchRecordType.MatchFinished });
+    this.addEvent({ type: MatchEventType.MatchFinished });
   }
 
   /**
-   * Registra um gol. O gol deve decorrer de um chute: o record no topo da pilha
-   * precisa ser um record de chute ({@link Match.KICK_RECORD_TYPES}), e o record
+   * Registra um gol. O gol deve decorrer de um chute: o evento no topo da pilha
+   * precisa ser um evento de chute ({@link Match.KICK_EVENT_TYPES}), e o evento
    * de gol referencia esse chute (`kickType`/`kickSequence`). Atualiza o placar
    * do time correspondente e adiciona o gol à lista.
    */
   registerGoal(goal: Goal): void {
     this.ensureInProgress();
 
-    const kick = this.latestRecord;
-    if (kick === undefined || !Match.KICK_RECORD_TYPES.has(kick.type)) {
-      throw new InvalidMatchOperationError('Um gol deve ser precedido de um record de chute.');
+    const kick = this.latestEvent;
+    if (kick === undefined || !Match.KICK_EVENT_TYPES.has(kick.type)) {
+      throw new InvalidMatchOperationError('Um gol deve ser precedido de um evento de chute.');
     }
 
     const team = this.resolveTeam(goal.teamId);
@@ -289,8 +289,8 @@ export class Match {
     this._updatedAt = timestamp;
     team.goals += 1;
     this._goals.push(goal);
-    this.addRecord({
-      type: MatchRecordType.Goal,
+    this.addEvent({
+      type: MatchEventType.Goal,
       goalId: goal.id,
       playerId: goal.playerId,
       playerName: goal.playerName,
@@ -306,7 +306,7 @@ export class Match {
 
     const timestamp = new Date();
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.OwnGoal, player);
+    this.registerPlayerEvent(MatchEventType.OwnGoal, player);
   }
 
   /** Registra uma cobrança de pênalti do jogador. */
@@ -315,7 +315,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.PenaltyKick, player);
+    this.registerPlayerEvent(MatchEventType.PenaltyKick, player);
   }
 
   /** Registra uma cobrança na disputa de pênaltis do jogador. */
@@ -324,7 +324,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.PenaltyShootout, player);
+    this.registerPlayerEvent(MatchEventType.PenaltyShootout, player);
   }
 
   /** Registra um escanteio cobrado pelo jogador. */
@@ -333,7 +333,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.CornerKick, player);
+    this.registerPlayerEvent(MatchEventType.CornerKick, player);
   }
 
   /** Registra uma cobrança de falta do jogador. */
@@ -342,7 +342,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.FreeKick, player);
+    this.registerPlayerEvent(MatchEventType.FreeKick, player);
   }
 
   /** Registra uma falta direta cometida pelo jogador. */
@@ -351,7 +351,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.DirectFreeKick, player);
+    this.registerPlayerEvent(MatchEventType.DirectFreeKick, player);
   }
 
   /** Registra uma falta indireta cometida pelo jogador. */
@@ -360,7 +360,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.IndirectFreeKick, player);
+    this.registerPlayerEvent(MatchEventType.IndirectFreeKick, player);
   }
 
   /** Registra um arremesso lateral do jogador. */
@@ -369,7 +369,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.ThrowIn, player);
+    this.registerPlayerEvent(MatchEventType.ThrowIn, player);
   }
 
   /** Registra um tiro de meta do jogador. */
@@ -378,7 +378,7 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.registerPlayerRecord(MatchRecordType.GoalKick, player);
+    this.registerPlayerEvent(MatchEventType.GoalKick, player);
   }
 
   /** Registra uma substituição: jogador que sai e jogador que entra. */
@@ -387,8 +387,8 @@ export class Match {
     const timestamp = new Date();
 
     this._updatedAt = timestamp;
-    this.addRecord({
-      type: MatchRecordType.Substitution,
+    this.addEvent({
+      type: MatchEventType.Substitution,
       playerOutId: playerOut.id,
       playerOutName: playerOut.name,
       playerOutShirtNumber: playerOut.shirtNumber,
@@ -399,28 +399,28 @@ export class Match {
   }
 
   /**
-   * Empilha um registro na linha do tempo da partida (topo = mais recente).
+   * Empilha um evento na linha do tempo da partida (topo = mais recente).
    * Recebe um `sequence` global crescente que preserva a ordem de ocorrência, e
    * a minutagem é derivada do relógio da partida (tempo decorrido desde
    * `startedAt`, em minutos inteiros).
    */
-  addRecord(record: NewMatchRecord): void {
+  addEvent(event: NewMatchEvent): void {
     if (this._startedAt === null) {
       throw new InvalidMatchOperationError(
-        'Não é possível adicionar registros a uma partida não iniciada.',
+        'Não é possível adicionar eventos a uma partida não iniciada.',
       );
     }
     const minute = this.currentMinute();
     const sequence = ++this._sequence;
     this._minute = minute;
-    this._records.push({ ...record, minute, sequence });
+    this._events.push({ ...event, minute, sequence });
     this._updatedAt = new Date();
   }
 
-  /** Desempilha o record do topo (mais recente), ou `undefined` se vazio. */
-  popRecord(): MatchRecord | undefined {
-    const removed = this._records.pop();
-    this._minute = this._records.at(-1)?.minute ?? 0;
+  /** Desempilha o evento do topo (mais recente), ou `undefined` se vazio. */
+  popEvent(): MatchEvent | undefined {
+    const removed = this._events.pop();
+    this._minute = this._events.at(-1)?.minute ?? 0;
     this._updatedAt = new Date();
     return removed;
   }
@@ -432,13 +432,13 @@ export class Match {
     }
   }
 
-  /** Adiciona um record associado a um único jogador. */
-  private registerPlayerRecord(type: MatchRecordType, player: Player): void {
+  /** Adiciona um evento associado a um único jogador. */
+  private registerPlayerEvent(type: MatchEventType, player: Player): void {
     this.ensureInProgress();
-    this.addRecord({ type, ...Match.playerPayload(player) });
+    this.addEvent({ type, ...Match.playerPayload(player) });
   }
 
-  /** Extrai o payload de identificação de um jogador para um record. */
+  /** Extrai o payload de identificação de um jogador para um evento. */
   private static playerPayload(player: Player): {
     playerId: string;
     playerName: string;

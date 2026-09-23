@@ -1,4 +1,4 @@
-import type { MatchRecordPublisher } from '../../domain/publishers/match-record.publisher.js';
+import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
 import type { MatchRepository } from '../../domain/repositories/match.repository.js';
 import { MatchNotFoundError } from '../errors/match-not-found.error.js';
 
@@ -10,14 +10,14 @@ export interface StartMatchInput {
 /**
  * Caso de uso: inicia uma partida agendada.
  *
- * Carrega o agregado, aplica a regra de início (que também registra o record
- * de partida iniciada), persiste o novo estado e publica o record mais recente.
+ * Carrega o agregado, aplica a regra de início (que também registra o evento
+ * de partida iniciada), persiste o novo estado e publica o evento mais recente.
  * As invariantes de transição de status ficam no próprio agregado.
  */
 export class StartMatchUseCase {
   constructor(
     private readonly matchRepository: MatchRepository,
-    private readonly recordPublisher: MatchRecordPublisher,
+    private readonly eventPublisher: MatchEventPublisher,
   ) {}
 
   async execute(input: StartMatchInput): Promise<void> {
@@ -27,7 +27,7 @@ export class StartMatchUseCase {
     match.start();
     await this.matchRepository.update(match);
 
-    const latestRecord = match.latestRecord;
-    if (latestRecord !== undefined) await this.recordPublisher.publish(latestRecord);
+    const latestEvent = match.latestEvent;
+    if (latestEvent !== undefined) await this.eventPublisher.publish(latestEvent);
   }
 }

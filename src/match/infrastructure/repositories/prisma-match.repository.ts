@@ -1,8 +1,8 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   Match,
-  type MatchRecord,
-  type MatchRecordType,
+  type MatchEvent,
+  type MatchEventType,
   type MatchScore,
   type MatchStatus,
 } from '../../domain/aggregates/match.aggregate.js';
@@ -38,7 +38,7 @@ interface GoalRow {
   minute: number;
 }
 
-interface RecordRow {
+interface EventRow {
   sequence: number;
   type: string;
   minute: number;
@@ -49,7 +49,7 @@ interface RecordRow {
  * Implementação do {@link MatchRepository} sobre PostgreSQL via Prisma, usando
  * raw queries (`$queryRaw`/`$executeRaw`) para todas as operações.
  *
- * Persiste a partida, o placar (desnormalizado), os gols e os records. As
+ * Persiste a partida, o placar (desnormalizado), os gols e os events. As
  * linhas de `teams` são de responsabilidade de outro contexto; aqui elas são
  * apenas lidas para reidratar o agregado.
  */
@@ -69,7 +69,7 @@ export class PrismaMatchRepository implements MatchRepository {
     const matchRow = matchRows.at(0);
     if (matchRow === undefined) return null;
 
-    const [teamRows, goalRows, recordRows] = await Promise.all([
+    const [teamRows, goalRows, eventRows] = await Promise.all([
       this.prisma.$queryRaw<TeamRow[]>`
         SELECT id, name, short_name AS "shortName"
         FROM teams
@@ -81,9 +81,9 @@ export class PrismaMatchRepository implements MatchRepository {
         WHERE match_id = ${id}
         ORDER BY minute ASC, id ASC
       `,
-      this.prisma.$queryRaw<RecordRow[]>`
+      this.prisma.$queryRaw<EventRow[]>`
         SELECT sequence, type, minute, payload
-        FROM match_records
+        FROM match_events
         WHERE match_id = ${id}
         ORDER BY sequence ASC
       `,
@@ -112,7 +112,7 @@ export class PrismaMatchRepository implements MatchRepository {
           minute: row.minute,
         }),
       ),
-      records: recordRows.map((row) => this.toRecord(row)),
+      events: eventRows.map((row) => this.toEvent(row)),
     });
   }
 
@@ -120,7 +120,7 @@ export class PrismaMatchRepository implements MatchRepository {
     await this.prisma.$transaction(async (tx) => {
       await this.insertMatch(tx, match);
       await this.insertGoals(tx, match);
-      await this.insertRecords(tx, match);
+      await this.insertEvents(tx, match);
     });
   }
 
@@ -140,9 +140,9 @@ export class PrismaMatchRepository implements MatchRepository {
         WHERE id = ${match.id}
       `;
       await tx.$executeRaw`DELETE FROM goals WHERE match_id = ${match.id}`;
-      await tx.$executeRaw`DELETE FROM match_records WHERE match_id = ${match.id}`;
+      await tx.$executeRaw`DELETE FROM match_events WHERE match_id = ${match.id}`;
       await this.insertGoals(tx, match);
-      await this.insertRecords(tx, match);
+      await this.insertEvents(tx, match);
     });
   }
 
@@ -168,11 +168,11 @@ export class PrismaMatchRepository implements MatchRepository {
     }
   }
 
-  private async insertRecords(tx: Prisma.TransactionClient, match: Match): Promise<void> {
-    for (const record of match.records) {
-      const { type, minute, sequence, ...payload } = record;
+  private async insertEvents(tx: Prisma.TransactionClient, match: Match): Promise<void> {
+    for (const event of match.events) {
+      const { type, minute, sequence, ...payload } = event;
       await tx.$executeRaw`
-        INSERT INTO match_records (match_id, sequence, type, minute, payload)
+        INSERT INTO match_events (match_id, sequence, type, minute, payload)
         VALUES (${match.id}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
       `;
     }
@@ -186,11 +186,11 @@ export class PrismaMatchRepository implements MatchRepository {
     return Team.restore({ id: row.id, name: row.name, shortName: row.shortName, players: [] });
   }
 
-  private toRecord(row: RecordRow): MatchRecord {
+  private toEvent(row: EventRow): MatchEvent {
     const payload = row.payload ?? {};
     return {
       ...payload,
-      type: row.type as MatchRecordType,
+      type: row.type as MatchEventType,
       minute: row.minute,
       sequence: row.sequence,
     };

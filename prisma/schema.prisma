@@ -46,7 +46,7 @@ model Goal {
   @@map("goals")
 }
 
-model MatchRecord {
+model MatchEvent {
   matchId  String @map("match_id")
   sequence Int
   type     String
@@ -54,5 +54,5 @@ model MatchRecord {
   payload  Json
 
   @@id([matchId, sequence])
-  @@map("match_records")
+  @@map("match_events")
 }
