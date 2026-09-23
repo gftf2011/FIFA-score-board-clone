@@ -307,18 +307,29 @@ export class Match {
       playerId: goal.playerId,
       playerName: goal.playerName,
       teamId: goal.teamId,
-      kickType: kick.type,
-      kickSequence: kick.sequence,
     });
   }
 
-  /** Registra um gol contra do jogador. */
-  registerOwnGoal(player: Player): void {
+  /**
+   * Registra um gol contra. Recebe o mesmo {@link Goal} do gol normal, cujo
+   * `teamId` é o time do autor; diferente do gol normal, o placar é creditado
+   * ao time adversário. Atualiza o placar do beneficiário e adiciona o gol à
+   * lista e o evento à linha do tempo.
+   */
+  registerOwnGoal(goal: Goal): void {
     this.ensureInProgress();
 
-    const timestamp = new Date();
-    this._updatedAt = timestamp;
-    this.registerPlayerEvent(MatchEventType.OwnGoal, player);
+    const beneficiary = this.opposingTeam(goal.teamId);
+    beneficiary.goals += 1;
+    this._goals.push(goal);
+    this.addEvent({
+      type: MatchEventType.OwnGoal,
+      goalId: goal.id,
+      playerId: goal.playerId,
+      playerName: goal.playerName,
+      teamId: goal.teamId,
+      beneficiaryTeamId: beneficiary.team.id,
+    });
   }
 
   /** Registra uma cobrança de pênalti do jogador. */
@@ -476,5 +487,11 @@ export class Match {
     if (teamId === this._score.teamA.team.id) return this._score.teamA;
     if (teamId === this._score.teamB.team.id) return this._score.teamB;
     throw new InvalidMatchOperationError(`Time ${teamId} não participa desta partida.`);
+  }
+
+  /** Retorna o placar do time adversário ao informado (valida participação). */
+  private opposingTeam(teamId: string): TeamScore {
+    this.resolveTeam(teamId);
+    return teamId === this._score.teamA.team.id ? this._score.teamB : this._score.teamA;
   }
 }

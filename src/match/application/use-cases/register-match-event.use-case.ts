@@ -25,7 +25,6 @@ export interface GoalData {
 
 /** Tipos de evento associados a um único jogador. */
 type SinglePlayerEventType =
-  | MatchEventType.OwnGoal
   | MatchEventType.PenaltyKick
   | MatchEventType.PenaltyShootout
   | MatchEventType.CornerKick
@@ -37,7 +36,7 @@ type SinglePlayerEventType =
 
 /** Entrada do caso de uso, discriminada pelo tipo de evento. */
 export type RegisterMatchEventInput = { readonly matchId: string } & (
-  | { readonly type: MatchEventType.Goal; readonly goal: GoalData }
+  | { readonly type: MatchEventType.Goal | MatchEventType.OwnGoal; readonly goal: GoalData }
   | {
       readonly type: MatchEventType.Substitution;
       readonly playerOut: PlayerData;
@@ -75,14 +74,14 @@ export class RegisterMatchEventUseCase {
       case MatchEventType.Goal:
         match.registerGoal(this.buildGoal(input.goal));
         return;
+      case MatchEventType.OwnGoal:
+        match.registerOwnGoal(this.buildGoal(input.goal));
+        return;
       case MatchEventType.Substitution:
         match.registerSubstitution(
           this.buildPlayer(input.playerOut),
           this.buildPlayer(input.playerIn),
         );
-        return;
-      case MatchEventType.OwnGoal:
-        match.registerOwnGoal(this.buildPlayer(input.player));
         return;
       case MatchEventType.PenaltyKick:
         match.registerPenaltyKick(this.buildPlayer(input.player));
