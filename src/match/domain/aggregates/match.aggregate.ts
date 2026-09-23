@@ -5,6 +5,7 @@
  * a linha do tempo de eventos ocorridos. Toda alteração de estado passa por
  * métodos de comportamento, mantendo o placar sempre coerente com os gols.
  */
+import type { Competition } from '../entities/competition.entity.js';
 import type { Goal } from '../entities/goal.entity.js';
 import type { Player } from '../entities/player.entity.js';
 import type { Team } from '../entities/team.entity.js';
@@ -56,6 +57,10 @@ export enum MatchEventType {
  */
 export interface MatchEvent {
   readonly type: MatchEventType;
+  /** Partida à qual o evento pertence. */
+  readonly matchId: string;
+  /** Competição da partida à qual o evento pertence. */
+  readonly competitionId: string;
   readonly minute: number;
   /** Ordem global de ocorrência do evento na partida (1, 2, 3, ...). */
   readonly sequence: number;
@@ -87,6 +92,7 @@ export interface MatchScore {
 /** Dados necessários para criar uma nova partida. */
 export interface CreateMatchProps {
   readonly id: string;
+  readonly competition: Competition;
   readonly teamA: Team;
   readonly teamB: Team;
 }
@@ -94,6 +100,7 @@ export interface CreateMatchProps {
 /** Estado completo da partida, usado para reidratação (ex.: vindo do banco). */
 export interface MatchProps {
   readonly id: string;
+  readonly competition: Competition;
   readonly status: MatchStatus;
   readonly minute: number;
   /** Momento do início da partida; `null` enquanto não iniciada. */
@@ -133,6 +140,7 @@ export class Match {
 
   private constructor(
     private readonly _id: string,
+    private readonly _competition: Competition,
     props: {
       status: MatchStatus;
       minute: number;
@@ -164,7 +172,7 @@ export class Match {
       );
     }
 
-    return new Match(props.id, {
+    return new Match(props.id, props.competition, {
       status: MatchStatus.Scheduled,
       minute: 0,
       startedAt: null,
@@ -182,7 +190,7 @@ export class Match {
 
   /** Reidrata uma partida a partir de um estado previamente persistido. */
   static restore(props: MatchProps): Match {
-    return new Match(props.id, {
+    return new Match(props.id, props.competition, {
       status: props.status,
       minute: props.minute,
       startedAt: props.startedAt,
@@ -200,6 +208,10 @@ export class Match {
 
   get id(): string {
     return this._id;
+  }
+
+  get competition(): Competition {
+    return this._competition;
   }
 
   get status(): MatchStatus {
@@ -413,7 +425,13 @@ export class Match {
     const minute = this.currentMinute();
     const sequence = ++this._sequence;
     this._minute = minute;
-    this._events.push({ ...event, minute, sequence });
+    this._events.push({
+      ...event,
+      matchId: this._id,
+      competitionId: this._competition.id,
+      minute,
+      sequence,
+    });
     this._updatedAt = new Date();
   }
 

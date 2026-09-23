@@ -6,12 +6,14 @@ import {
   type MatchScore,
   type MatchStatus,
 } from '../../domain/aggregates/match.aggregate.js';
+import { Competition, type CompetitionType } from '../../domain/entities/competition.entity.js';
 import { Goal } from '../../domain/entities/goal.entity.js';
 import { Team } from '../../domain/entities/team.entity.js';
 import type { MatchRepository } from '../../domain/repositories/match.repository.js';
 
 interface MatchRow {
   id: string;
+  competitionId: string;
   status: string;
   minute: number;
   startedAt: Date | null;
@@ -30,6 +32,12 @@ interface TeamRow {
   shortName: string;
 }
 
+interface CompetitionRow {
+  id: string;
+  name: string;
+  type: string;
+}
+
 interface GoalRow {
   id: string;
   playerId: string;
@@ -39,6 +47,7 @@ interface GoalRow {
 }
 
 interface EventRow {
+  competitionId: string;
   sequence: number;
   type: string;
   minute: number;
@@ -58,7 +67,7 @@ export class PrismaMatchRepository implements MatchRepository {
 
   async findById(id: string): Promise<Match | null> {
     const matchRows = await this.prisma.$queryRaw<MatchRow[]>`
-      SELECT id, status, minute,
+      SELECT id, competition_id AS "competitionId", status, minute,
              started_at AS "startedAt", finished_at AS "finishedAt", updated_at AS "updatedAt",
              sequence,
              team_a_id AS "teamAId", team_b_id AS "teamBId",
@@ -69,7 +78,10 @@ export class PrismaMatchRepository implements MatchRepository {
     const matchRow = matchRows.at(0);
     if (matchRow === undefined) return null;
 
-    const [teamRows, goalRows, eventRows] = await Promise.all([
+    const [competitionRows, teamRows, goalRows, eventRows] = await Promise.all([
+      this.prisma.$queryRaw<CompetitionRow[]>`
+        SELECT id, name, type FROM competitions WHERE id = ${matchRow.competitionId}
+      `,
       this.prisma.$queryRaw<TeamRow[]>`
         SELECT id, name, short_name AS "shortName"
         FROM teams
@@ -82,7 +94,7 @@ export class PrismaMatchRepository implements MatchRepository {
         ORDER BY minute ASC, id ASC
       `,
       this.prisma.$queryRaw<EventRow[]>`
-        SELECT sequence, type, minute, payload
+        SELECT competition_id AS "competitionId", sequence, type, minute, payload
         FROM match_events
         WHERE match_id = ${id}
         ORDER BY sequence ASC
@@ -96,6 +108,7 @@ export class PrismaMatchRepository implements MatchRepository {
 
     return Match.restore({
       id: matchRow.id,
+      competition: this.toCompetition(competitionRows, matchRow.competitionId),
       status: matchRow.status as MatchStatus,
       minute: matchRow.minute,
       startedAt: matchRow.startedAt,
@@ -112,7 +125,7 @@ export class PrismaMatchRepository implements MatchRepository {
           minute: row.minute,
         }),
       ),
-      events: eventRows.map((row) => this.toEvent(row)),
+      events: eventRows.map((row) => this.toEvent(row, matchRow.id)),
     });
   }
 
@@ -150,11 +163,11 @@ export class PrismaMatchRepository implements MatchRepository {
     const { teamA, teamB } = match.score;
     await tx.$executeRaw`
       INSERT INTO matches
-        (id, status, minute, started_at, finished_at, updated_at, sequence,
+        (id, competition_id, status, minute, started_at, finished_at, updated_at, sequence,
          team_a_id, team_b_id, team_a_goals, team_b_goals)
       VALUES
-        (${match.id}, ${match.status}, ${match.minute}, ${match.startedAt}, ${match.finishedAt},
-         ${match.updatedAt}, ${match.sequence}, ${teamA.team.id}, ${teamB.team.id},
+        (${match.id}, ${match.competition.id}, ${match.status}, ${match.minute}, ${match.startedAt},
+         ${match.finishedAt}, ${match.updatedAt}, ${match.sequence}, ${teamA.team.id}, ${teamB.team.id},
          ${teamA.goals}, ${teamB.goals})
     `;
   }
@@ -170,12 +183,21 @@ export class PrismaMatchRepository implements MatchRepository {
 
   private async insertEvents(tx: Prisma.TransactionClient, match: Match): Promise<void> {
     for (const event of match.events) {
-      const { type, minute, sequence, ...payload } = event;
+      // matchId/competitionId têm colunas próprias: fora do payload jsonb.
+      const { type, minute, sequence, matchId, competitionId, ...payload } = event;
       await tx.$executeRaw`
-        INSERT INTO match_events (match_id, sequence, type, minute, payload)
-        VALUES (${match.id}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
+        INSERT INTO match_events (match_id, competition_id, sequence, type, minute, payload)
+        VALUES (${match.id}, ${competitionId}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
       `;
     }
+  }
+
+  private toCompetition(rows: CompetitionRow[], competitionId: string): Competition {
+    const row = rows.find((candidate) => candidate.id === competitionId);
+    if (row === undefined) {
+      throw new Error(`Competição ${competitionId} não encontrada ao reidratar a partida.`);
+    }
+    return Competition.restore({ id: row.id, name: row.name, type: row.type as CompetitionType });
   }
 
   private toTeam(rows: TeamRow[], teamId: string): Team {
@@ -186,11 +208,13 @@ export class PrismaMatchRepository implements MatchRepository {
     return Team.restore({ id: row.id, name: row.name, shortName: row.shortName, players: [] });
   }
 
-  private toEvent(row: EventRow): MatchEvent {
+  private toEvent(row: EventRow, matchId: string): MatchEvent {
     const payload = row.payload ?? {};
     return {
       ...payload,
       type: row.type as MatchEventType,
+      matchId,
+      competitionId: row.competitionId,
       minute: row.minute,
       sequence: row.sequence,
     };

@@ -18,10 +18,19 @@ model Team {
   @@map("teams")
 }
 
+model Competition {
+  id   String @id
+  name String
+  type String
+
+  @@map("competitions")
+}
+
 model Match {
-  id         String    @id
-  status     String
-  minute     Int
+  id            String    @id
+  competitionId String    @map("competition_id")
+  status        String
+  minute        Int
   startedAt  DateTime? @map("started_at")
   finishedAt DateTime? @map("finished_at")
   updatedAt  DateTime  @map("updated_at")
@@ -47,12 +56,14 @@ model Goal {
 }
 
 model MatchEvent {
-  matchId  String @map("match_id")
-  sequence Int
-  type     String
-  minute   Int
-  payload  Json
+  matchId       String @map("match_id")
+  competitionId String @map("competition_id")
+  sequence      Int
+  type          String
+  minute        Int
+  payload       Json
 
   @@id([matchId, sequence])
+  @@index([competitionId])
   @@map("match_events")
 }
