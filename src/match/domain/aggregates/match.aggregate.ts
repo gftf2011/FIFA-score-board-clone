@@ -6,6 +6,7 @@
  * métodos de comportamento, mantendo o placar sempre coerente com os gols.
  */
 import type { Goal } from '../entities/goal.entity.js';
+import type { Player } from '../entities/player.entity.js';
 import type { Team } from '../entities/team.entity.js';
 import { InvalidMatchOperationError } from '../errors/match-domain.error.js';
 
@@ -99,6 +100,8 @@ export interface MatchProps {
   readonly startedAt: Date | null;
   /** Momento do encerramento da partida; `null` enquanto não encerrada. */
   readonly finishedAt: Date | null;
+  /** Momento da última modificação do agregado. */
+  readonly updatedAt: Date;
   /** Último sequence atribuído (topo da pilha de records). */
   readonly sequence: number;
   readonly score: MatchScore;
@@ -107,10 +110,22 @@ export interface MatchProps {
 }
 
 export class Match {
+  /** Tipos de record considerados um "chute" que pode originar um gol. */
+  private static readonly KICK_RECORD_TYPES: ReadonlySet<MatchRecordType> = new Set([
+    MatchRecordType.PenaltyKick,
+    MatchRecordType.PenaltyShootout,
+    MatchRecordType.FreeKick,
+    MatchRecordType.DirectFreeKick,
+    MatchRecordType.IndirectFreeKick,
+    MatchRecordType.CornerKick,
+    MatchRecordType.GoalKick,
+  ]);
+
   private _status: MatchStatus;
   private _minute: number;
   private _startedAt: Date | null;
   private _finishedAt: Date | null;
+  private _updatedAt: Date;
   private _sequence: number;
   private readonly _score: MatchScore;
   private readonly _goals: Goal[];
@@ -123,6 +138,7 @@ export class Match {
       minute: number;
       startedAt: Date | null;
       finishedAt: Date | null;
+      updatedAt: Date;
       sequence: number;
       score: MatchScore;
       goals: Goal[];
@@ -133,6 +149,7 @@ export class Match {
     this._minute = props.minute;
     this._startedAt = props.startedAt;
     this._finishedAt = props.finishedAt;
+    this._updatedAt = props.updatedAt;
     this._sequence = props.sequence;
     this._score = props.score;
     this._goals = props.goals;
@@ -152,6 +169,7 @@ export class Match {
       minute: 0,
       startedAt: null,
       finishedAt: null,
+      updatedAt: new Date(),
       sequence: 0,
       score: {
         teamA: { team: props.teamA, goals: 0 },
@@ -169,6 +187,7 @@ export class Match {
       minute: props.minute,
       startedAt: props.startedAt,
       finishedAt: props.finishedAt,
+      updatedAt: props.updatedAt,
       sequence: props.sequence,
       score: {
         teamA: { team: props.score.teamA.team, goals: props.score.teamA.goals },
@@ -197,6 +216,10 @@ export class Match {
 
   get finishedAt(): Date | null {
     return this._finishedAt;
+  }
+
+  get updatedAt(): Date {
+    return this._updatedAt;
   }
 
   /** Último sequence atribuído (topo da pilha de records). */
@@ -228,8 +251,10 @@ export class Match {
   start(): void {
     if (this._status !== MatchStatus.Scheduled)
       throw new InvalidMatchOperationError('Apenas uma partida agendada pode ser iniciada.');
+    const timestamp = new Date();
     this._status = MatchStatus.InProgress;
-    this._startedAt = new Date();
+    this._startedAt = timestamp;
+    this._updatedAt = timestamp;
     this.addRecord({ type: MatchRecordType.MatchStarted });
   }
 
@@ -237,23 +262,31 @@ export class Match {
   finish(): void {
     if (this._status !== MatchStatus.InProgress)
       throw new InvalidMatchOperationError('Apenas uma partida em andamento pode ser encerrada.');
+    const timestamp = new Date();
     this._status = MatchStatus.Finished;
-    this._finishedAt = new Date();
+    this._finishedAt = timestamp;
+    this._updatedAt = timestamp;
     this.addRecord({ type: MatchRecordType.MatchFinished });
   }
 
   /**
-   * Registra um gol: atualiza o placar do time correspondente, adiciona o gol
-   * à lista e adiciona o registro de gol na linha do tempo.
+   * Registra um gol. O gol deve decorrer de um chute: o record no topo da pilha
+   * precisa ser um record de chute ({@link Match.KICK_RECORD_TYPES}), e o record
+   * de gol referencia esse chute (`kickType`/`kickSequence`). Atualiza o placar
+   * do time correspondente e adiciona o gol à lista.
    */
   registerGoal(goal: Goal): void {
-    if (this._status !== MatchStatus.InProgress) {
-      throw new InvalidMatchOperationError(
-        'Só é possível registrar gols com a partida em andamento.',
-      );
+    this.ensureInProgress();
+
+    const kick = this.latestRecord;
+    if (kick === undefined || !Match.KICK_RECORD_TYPES.has(kick.type)) {
+      throw new InvalidMatchOperationError('Um gol deve ser precedido de um record de chute.');
     }
 
     const team = this.resolveTeam(goal.teamId);
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
     team.goals += 1;
     this._goals.push(goal);
     this.addRecord({
@@ -262,6 +295,106 @@ export class Match {
       playerId: goal.playerId,
       playerName: goal.playerName,
       teamId: goal.teamId,
+      kickType: kick.type,
+      kickSequence: kick.sequence,
+    });
+  }
+
+  /** Registra um gol contra do jogador. */
+  registerOwnGoal(player: Player): void {
+    this.ensureInProgress();
+
+    const timestamp = new Date();
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.OwnGoal, player);
+  }
+
+  /** Registra uma cobrança de pênalti do jogador. */
+  registerPenaltyKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.PenaltyKick, player);
+  }
+
+  /** Registra uma cobrança na disputa de pênaltis do jogador. */
+  registerPenaltyShootout(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.PenaltyShootout, player);
+  }
+
+  /** Registra um escanteio cobrado pelo jogador. */
+  registerCornerKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.CornerKick, player);
+  }
+
+  /** Registra uma cobrança de falta do jogador. */
+  registerFreeKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.FreeKick, player);
+  }
+
+  /** Registra uma falta direta cometida pelo jogador. */
+  registerDirectFreeKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.DirectFreeKick, player);
+  }
+
+  /** Registra uma falta indireta cometida pelo jogador. */
+  registerIndirectFreeKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.IndirectFreeKick, player);
+  }
+
+  /** Registra um arremesso lateral do jogador. */
+  registerThrowIn(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.ThrowIn, player);
+  }
+
+  /** Registra um tiro de meta do jogador. */
+  registerGoalKick(player: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.registerPlayerRecord(MatchRecordType.GoalKick, player);
+  }
+
+  /** Registra uma substituição: jogador que sai e jogador que entra. */
+  registerSubstitution(playerOut: Player, playerIn: Player): void {
+    this.ensureInProgress();
+    const timestamp = new Date();
+
+    this._updatedAt = timestamp;
+    this.addRecord({
+      type: MatchRecordType.Substitution,
+      playerOutId: playerOut.id,
+      playerOutName: playerOut.name,
+      playerOutShirtNumber: playerOut.shirtNumber,
+      playerInId: playerIn.id,
+      playerInName: playerIn.name,
+      playerInShirtNumber: playerIn.shirtNumber,
     });
   }
 
@@ -281,13 +414,37 @@ export class Match {
     const sequence = ++this._sequence;
     this._minute = minute;
     this._records.push({ ...record, minute, sequence });
+    this._updatedAt = new Date();
   }
 
   /** Desempilha o record do topo (mais recente), ou `undefined` se vazio. */
   popRecord(): MatchRecord | undefined {
     const removed = this._records.pop();
     this._minute = this._records.at(-1)?.minute ?? 0;
+    this._updatedAt = new Date();
     return removed;
+  }
+
+  /** Garante que a partida esteja em andamento. */
+  private ensureInProgress(): void {
+    if (this._status !== MatchStatus.InProgress) {
+      throw new InvalidMatchOperationError('A partida precisa estar em andamento.');
+    }
+  }
+
+  /** Adiciona um record associado a um único jogador. */
+  private registerPlayerRecord(type: MatchRecordType, player: Player): void {
+    this.ensureInProgress();
+    this.addRecord({ type, ...Match.playerPayload(player) });
+  }
+
+  /** Extrai o payload de identificação de um jogador para um record. */
+  private static playerPayload(player: Player): {
+    playerId: string;
+    playerName: string;
+    shirtNumber: number;
+  } {
+    return { playerId: player.id, playerName: player.name, shirtNumber: player.shirtNumber };
   }
 
   /** Minuto atual da partida: tempo decorrido desde `startedAt`, em minutos. */

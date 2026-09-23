@@ -21,7 +21,7 @@ export interface PlayerProps {
 /**
  * Entidade que representa um jogador. No DDD, uma entidade é distinguida pela
  * sua identidade (`id`) e não pelos seus atributos — por isso a igualdade é
- * comparada via {@link Player.equals}. O estado é encapsulado e criado apenas
+ * comparada via {@link Player#equals}. O estado é encapsulado e criado apenas
  * pelas fábricas, que garantem as invariantes.
  */
 export class Player {

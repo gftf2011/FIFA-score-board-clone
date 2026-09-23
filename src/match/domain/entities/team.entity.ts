@@ -12,7 +12,7 @@ export interface TeamProps {
 
 /**
  * Entidade que representa um time. É distinguida pela sua identidade (`id`),
- * conforme os princípios de DDD (ver {@link Team.equals}). Mantém o elenco de
+ * conforme os princípios de DDD (ver {@link Team#equals}). Mantém o elenco de
  * jogadores, garantindo que todo jogador adicionado pertença ao time.
  */
 export class Team {
