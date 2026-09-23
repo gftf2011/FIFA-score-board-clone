@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { registerMatchModule } from '../match/main/match.module';
+import { registerMatchModule } from '../match/main/api/match.module';
 import { prisma } from '../shared/infrastructure/prisma/prisma-client';
 
 function buildApp() {
