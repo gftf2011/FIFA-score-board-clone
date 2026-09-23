@@ -51,6 +51,7 @@ interface GoalRow {
 }
 
 interface EventRow {
+  id: string;
   competitionId: string;
   sequence: number;
   type: string;
@@ -120,7 +121,7 @@ export class PrismaMatchRepository implements MatchRepository {
         ORDER BY minute ASC, id ASC
       `,
       db.$queryRaw<EventRow[]>`
-        SELECT competition_id AS "competitionId", sequence, type, minute, payload
+        SELECT id, competition_id AS "competitionId", sequence, type, minute, payload
         FROM match_events
         WHERE match_id = ${id}
         ORDER BY sequence ASC
@@ -209,11 +210,11 @@ export class PrismaMatchRepository implements MatchRepository {
 
   private async insertEvents(tx: Prisma.TransactionClient, match: Match): Promise<void> {
     for (const event of match.events) {
-      // matchId/competitionId têm colunas próprias: fora do payload jsonb.
-      const { type, minute, sequence, matchId, competitionId, ...payload } = event;
+      // id/matchId/competitionId têm colunas próprias: fora do payload jsonb.
+      const { id, type, minute, sequence, matchId, competitionId, ...payload } = event;
       await tx.$executeRaw`
-        INSERT INTO match_events (match_id, competition_id, sequence, type, minute, payload)
-        VALUES (${match.id}, ${competitionId}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
+        INSERT INTO match_events (id, match_id, competition_id, sequence, type, minute, payload)
+        VALUES (${id}, ${match.id}, ${competitionId}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
       `;
     }
   }
@@ -238,6 +239,7 @@ export class PrismaMatchRepository implements MatchRepository {
     const payload = row.payload ?? {};
     return {
       ...payload,
+      id: row.id,
       type: row.type as MatchEventType,
       matchId,
       competitionId: row.competitionId,

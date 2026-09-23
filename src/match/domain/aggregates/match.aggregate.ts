@@ -5,6 +5,7 @@
  * a linha do tempo de eventos ocorridos. Toda alteração de estado passa por
  * métodos de comportamento, mantendo o placar sempre coerente com os gols.
  */
+import { randomUUID } from 'node:crypto';
 import type { Competition } from '../entities/competition.entity';
 import type { Goal } from '../entities/goal.entity';
 import type { Player } from '../entities/player.entity';
@@ -56,6 +57,8 @@ export enum MatchEventType {
  * jogadores etc.).
  */
 export interface MatchEvent {
+  /** Identificador único do evento (usado, entre outros, como chave no outbox). */
+  readonly id: string;
   readonly type: MatchEventType;
   /** Partida à qual o evento pertence. */
   readonly matchId: string;
@@ -438,6 +441,7 @@ export class Match {
     this._minute = minute;
     this._events.push({
       ...event,
+      id: randomUUID(),
       matchId: this._id,
       competitionId: this._competition.id,
       minute,
