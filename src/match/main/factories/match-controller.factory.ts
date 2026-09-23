@@ -1,5 +1,8 @@
 import type { SNSClient } from '@aws-sdk/client-sns';
 import type { PrismaClient } from '@prisma/client';
+import { TransactionalUseCase } from '../../../shared/application/transactional-use-case.decorator.js';
+import type { UseCase } from '../../../shared/application/use-case.js';
+import { PrismaUnitOfWork } from '../../../shared/infrastructure/prisma/prisma-unit-of-work.js';
 import { FinishMatchUseCase } from '../../application/use-cases/finish-match.use-case.js';
 import { RegisterMatchEventUseCase } from '../../application/use-cases/register-match-event.use-case.js';
 import { StartMatchUseCase } from '../../application/use-cases/start-match.use-case.js';
@@ -22,10 +25,15 @@ export interface MatchControllerDeps {
 export function makeMatchController(deps: MatchControllerDeps): MatchController {
   const repository = new PrismaMatchRepository(deps.prisma);
   const publisher = new SnsMatchEventPublisher(deps.snsClient, { topicArn: deps.snsTopicArn });
+  const unitOfWork = new PrismaUnitOfWork(deps.prisma);
+
+  // Cada caso de uso roda dentro de uma UnitOfWork (COMMIT/ROLLBACK atômico).
+  const transactional = <Input>(useCase: UseCase<Input, void>): UseCase<Input, void> =>
+    new TransactionalUseCase(useCase, unitOfWork);
 
   return new MatchController(
-    new StartMatchUseCase(repository, publisher),
-    new FinishMatchUseCase(repository, publisher),
-    new RegisterMatchEventUseCase(repository, publisher),
+    transactional(new StartMatchUseCase(repository, publisher)),
+    transactional(new FinishMatchUseCase(repository, publisher)),
+    transactional(new RegisterMatchEventUseCase(repository, publisher)),
   );
 }

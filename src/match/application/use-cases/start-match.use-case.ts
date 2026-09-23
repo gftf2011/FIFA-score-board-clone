@@ -1,3 +1,4 @@
+import type { UseCase } from '../../../shared/application/use-case.js';
 import type { MatchEventPublisher } from '../../domain/publishers/match-event.publisher.js';
 import type { MatchRepository } from '../../domain/repositories/match.repository.js';
 import { MatchNotFoundError } from '../errors/match-not-found.error.js';
@@ -14,7 +15,7 @@ export interface StartMatchInput {
  * de partida iniciada), persiste o novo estado e publica o evento mais recente.
  * As invariantes de transição de status ficam no próprio agregado.
  */
-export class StartMatchUseCase {
+export class StartMatchUseCase implements UseCase<StartMatchInput, void> {
   constructor(
     private readonly matchRepository: MatchRepository,
     private readonly eventPublisher: MatchEventPublisher,

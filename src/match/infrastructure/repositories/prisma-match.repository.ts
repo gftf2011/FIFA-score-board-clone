@@ -10,6 +10,10 @@ import { Competition, type CompetitionType } from '../../domain/entities/competi
 import { Goal } from '../../domain/entities/goal.entity.js';
 import { Team } from '../../domain/entities/team.entity.js';
 import type { MatchRepository } from '../../domain/repositories/match.repository.js';
+import { getTransactionClient } from '../../../shared/infrastructure/prisma/transaction-context.js';
+
+/** Client capaz de executar queries — base ou transação ambiente. */
+type PrismaExecutor = PrismaClient | Prisma.TransactionClient;
 
 interface MatchRow {
   id: string;
@@ -65,8 +69,30 @@ interface EventRow {
 export class PrismaMatchRepository implements MatchRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /** Client de leitura: a transação ambiente (UnitOfWork) ou o client base. */
+  private get db(): PrismaExecutor {
+    return getTransactionClient() ?? this.prisma;
+  }
+
+  /**
+   * Executa as escritas numa transação: reaproveita a transação ambiente da
+   * UnitOfWork quando existe; caso contrário, abre a sua própria (mantendo a
+   * atomicidade do create/update mesmo sem UnitOfWork).
+   */
+  private async withTransaction(
+    work: (tx: Prisma.TransactionClient) => Promise<void>,
+  ): Promise<void> {
+    const ambient = getTransactionClient();
+    if (ambient !== undefined) {
+      await work(ambient);
+      return;
+    }
+    await this.prisma.$transaction((tx) => work(tx));
+  }
+
   async findById(id: string): Promise<Match | null> {
-    const matchRows = await this.prisma.$queryRaw<MatchRow[]>`
+    const db = this.db;
+    const matchRows = await db.$queryRaw<MatchRow[]>`
       SELECT id, competition_id AS "competitionId", status, minute,
              started_at AS "startedAt", finished_at AS "finishedAt", updated_at AS "updatedAt",
              sequence,
@@ -79,21 +105,21 @@ export class PrismaMatchRepository implements MatchRepository {
     if (matchRow === undefined) return null;
 
     const [competitionRows, teamRows, goalRows, eventRows] = await Promise.all([
-      this.prisma.$queryRaw<CompetitionRow[]>`
+      db.$queryRaw<CompetitionRow[]>`
         SELECT id, name, type FROM competitions WHERE id = ${matchRow.competitionId}
       `,
-      this.prisma.$queryRaw<TeamRow[]>`
+      db.$queryRaw<TeamRow[]>`
         SELECT id, name, short_name AS "shortName"
         FROM teams
         WHERE id IN (${matchRow.teamAId}, ${matchRow.teamBId})
       `,
-      this.prisma.$queryRaw<GoalRow[]>`
+      db.$queryRaw<GoalRow[]>`
         SELECT id, player_id AS "playerId", player_name AS "playerName", team_id AS "teamId", minute
         FROM goals
         WHERE match_id = ${id}
         ORDER BY minute ASC, id ASC
       `,
-      this.prisma.$queryRaw<EventRow[]>`
+      db.$queryRaw<EventRow[]>`
         SELECT competition_id AS "competitionId", sequence, type, minute, payload
         FROM match_events
         WHERE match_id = ${id}
@@ -130,7 +156,7 @@ export class PrismaMatchRepository implements MatchRepository {
   }
 
   async create(match: Match): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.withTransaction(async (tx) => {
       await this.insertMatch(tx, match);
       await this.insertGoals(tx, match);
       await this.insertEvents(tx, match);
@@ -138,7 +164,7 @@ export class PrismaMatchRepository implements MatchRepository {
   }
 
   async update(match: Match): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.withTransaction(async (tx) => {
       const { teamA, teamB } = match.score;
       await tx.$executeRaw`
         UPDATE matches SET

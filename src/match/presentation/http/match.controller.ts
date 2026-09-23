@@ -1,12 +1,10 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { UseCase } from '../../../shared/application/use-case.js';
 import { DomainError } from '../../../shared/domain/errors/domain.error.js';
 import { MatchNotFoundError } from '../../application/errors/match-not-found.error.js';
-import type { FinishMatchUseCase } from '../../application/use-cases/finish-match.use-case.js';
-import type {
-  RegisterMatchEventInput,
-  RegisterMatchEventUseCase,
-} from '../../application/use-cases/register-match-event.use-case.js';
-import type { StartMatchUseCase } from '../../application/use-cases/start-match.use-case.js';
+import type { FinishMatchInput } from '../../application/use-cases/finish-match.use-case.js';
+import type { RegisterMatchEventInput } from '../../application/use-cases/register-match-event.use-case.js';
+import type { StartMatchInput } from '../../application/use-cases/start-match.use-case.js';
 import { MatchEventType } from '../../domain/aggregates/match.aggregate.js';
 
 interface MatchIdParams {
@@ -37,9 +35,9 @@ const registerEventBodySchema = {
  */
 export class MatchController {
   constructor(
-    private readonly startMatch: StartMatchUseCase,
-    private readonly finishMatch: FinishMatchUseCase,
-    private readonly registerMatchEvent: RegisterMatchEventUseCase,
+    private readonly startMatch: UseCase<StartMatchInput, void>,
+    private readonly finishMatch: UseCase<FinishMatchInput, void>,
+    private readonly registerMatchEvent: UseCase<RegisterMatchEventInput, void>,
   ) {}
 
   /** Registra as rotas e o error handler na instância do Fastify. */

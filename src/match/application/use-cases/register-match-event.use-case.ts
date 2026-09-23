@@ -1,3 +1,4 @@
+import type { UseCase } from '../../../shared/application/use-case.js';
 import { MatchEventType, type Match } from '../../domain/aggregates/match.aggregate.js';
 import { Goal } from '../../domain/entities/goal.entity.js';
 import { Player, type PlayerPosition } from '../../domain/entities/player.entity.js';
@@ -51,7 +52,7 @@ export type RegisterMatchEventInput = { readonly matchId: string } & (
  * ao tipo, persiste e publica o evento mais recente. As invariantes (partida em
  * andamento, gol precedido de chute etc.) ficam no próprio agregado.
  */
-export class RegisterMatchEventUseCase {
+export class RegisterMatchEventUseCase implements UseCase<RegisterMatchEventInput, void> {
   constructor(
     private readonly matchRepository: MatchRepository,
     private readonly eventPublisher: MatchEventPublisher,
