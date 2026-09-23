@@ -1,0 +1,66 @@
+services:
+  # Emulador de nuvem AWS (floci) — provê o SNS na porta 4566.
+  floci:
+    image: floci/floci:latest
+    ports:
+      - '4566:4566'
+
+  # PostgreSQL — o "RDS" local. A app conecta direto via DATABASE_URL,
+  # exatamente como faria com o endpoint de um RDS real.
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fifa
+      POSTGRES_PASSWORD: fifa
+      POSTGRES_DB: fifa
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fifa -d fifa']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Cria o tópico SNS no floci (aguarda o floci ficar pronto).
+  sns-setup:
+    image: amazon/aws-cli:2
+    depends_on:
+      - floci
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        until aws --endpoint-url=http://floci:4566 sns create-topic --name match-events; do
+          echo "aguardando o floci..."; sleep 2;
+        done
+
+  # A aplicação: aplica o schema no banco (prisma db push) e sobe o servidor.
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sns-setup:
+        condition: service_completed_successfully
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
+      # O AWS SDK v3 respeita AWS_ENDPOINT_URL e usa o floci em vez da AWS real.
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:match-events
+    command: sh -c "npx prisma db push --skip-generate && node dist/main/server.js"
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata:
