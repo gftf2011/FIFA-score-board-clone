@@ -9,7 +9,7 @@ import type {
 /**
  * Projeção da partida no Redis com comandos idempotentes (sem script Lua).
  * Estruturas:
- *  - `match:{id}` (HASH) → `status`, `competitionId`, `updatedAt`, `lastEventId`.
+ *  - `match:{id}` (HASH) → `status`, `competitionId`, `updatedAt`.
  *  - `match:{id}:goals:{teamId}` (SET) → um gol é o `eventId`; placar = `SCARD`.
  *  - `match:{id}:events` (ZSET) → linha do tempo por `sequence` (membro único).
  *
@@ -31,8 +31,6 @@ export class RedisMatchProjectionRepository implements MatchProjectionRepository
       event.competitionId,
       'updatedAt',
       new Date().toISOString(),
-      'lastEventId',
-      event.id,
     );
     await pipeline.exec();
   }

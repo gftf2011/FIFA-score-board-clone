@@ -85,6 +85,19 @@ CREATE TABLE "match_events" (
     CONSTRAINT "match_events_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "outbox_messages" (
+    "id" TEXT NOT NULL,
+    "match_id" TEXT NOT NULL,
+    "type" "MatchEventType" NOT NULL,
+    "payload" JSONB NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "published_at" TIMESTAMP(3),
+
+    CONSTRAINT "outbox_messages_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "players_team_id_idx" ON "players"("team_id");
 
@@ -96,3 +109,6 @@ CREATE INDEX "match_events_competition_id_idx" ON "match_events"("competition_id
 
 -- CreateIndex
 CREATE UNIQUE INDEX "match_events_match_id_sequence_key" ON "match_events"("match_id", "sequence");
+
+-- CreateIndex
+CREATE INDEX "outbox_messages_published_at_created_at_idx" ON "outbox_messages"("published_at", "created_at");

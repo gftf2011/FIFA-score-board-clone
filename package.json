@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/main/server.ts",
     "worker:dev": "tsx watch src/main/sqs-worker.ts",
+    "relay:dev": "tsx watch src/main/outbox-relay.ts",
     "seed": "tsx prisma/seed.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main/server.js",

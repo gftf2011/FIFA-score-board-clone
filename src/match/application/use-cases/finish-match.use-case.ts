@@ -13,8 +13,8 @@ export interface FinishMatchInput {
  *
  * Carrega o agregado, aplica a regra de encerramento (que também registra o
  * evento de partida encerrada), persiste o novo estado e publica o evento mais
- * recente no SNS. As invariantes de transição de status ficam no próprio
- * agregado.
+ * recente pelo {@link MatchEventPublisher}. As invariantes de transição de
+ * status ficam no próprio agregado.
  */
 export class FinishMatchUseCase implements UseCase<FinishMatchInput, void> {
   constructor(

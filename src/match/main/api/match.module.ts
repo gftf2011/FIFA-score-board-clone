@@ -1,20 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import { snsClient } from '../../../shared/infrastructure/aws/sns-client';
 import { prisma } from '../../../shared/infrastructure/prisma/prisma-client';
-import { loadMatchModuleConfig } from './config';
 import { makeMatchController } from './factories/match-controller.factory';
 
 /**
- * Monta a API de partida com os recursos compartilhados (Prisma, SNS) e
- * registra suas rotas na instância do Fastify.
+ * Monta a API de partida com os recursos compartilhados (Prisma) e registra
+ * suas rotas na instância do Fastify. Os eventos são gravados na outbox pela
+ * própria transação; a publicação no SNS fica a cargo do relay do outbox.
  */
 export function registerMatchModule(app: FastifyInstance): void {
-  const config = loadMatchModuleConfig();
-  const controller = makeMatchController({
-    prisma,
-    snsClient,
-    snsTopicArn: config.snsTopicArn,
-  });
+  const controller = makeMatchController({ prisma });
 
   controller.registerRoutes(app);
 }

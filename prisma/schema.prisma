@@ -119,3 +119,20 @@ model MatchEvent {
   @@index([competitionId])
   @@map("match_events")
 }
+
+// Transactional outbox: o evento é gravado aqui na MESMA transação que persiste
+// a partida (evitando o dual-write com o SNS). O relay (src/main/outbox-relay.ts)
+// lê as mensagens pendentes (`published_at IS NULL`), publica no SNS e as marca
+// como publicadas. `payload` guarda o MatchEvent serializado por completo.
+model OutboxMessage {
+  id          String         @id
+  matchId     String         @map("match_id")
+  type        MatchEventType
+  payload     Json
+  attempts    Int            @default(0)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  publishedAt DateTime?      @map("published_at")
+
+  @@index([publishedAt, createdAt])
+  @@map("outbox_messages")
+}

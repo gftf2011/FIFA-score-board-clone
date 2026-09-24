@@ -94,6 +94,26 @@ services:
       REDIS_URL: redis://redis:6379
     command: node dist/main/sqs-worker.js
 
+  # Relay do transactional outbox: faz polling da tabela outbox_messages e
+  # publica os eventos no SNS. É quem move o evento do banco (gravado pela
+  # transação da API) para o barramento — desacoplando a escrita da publicação.
+  relay:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      sns-setup:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:match-events
+    command: node dist/main/outbox-relay.js
+
   # Aplica as migrations (one-shot). App e seed dependem disto — não do db push.
   migrate:
     build: .
@@ -110,18 +130,11 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      sns-setup:
-        condition: service_completed_successfully
     environment:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
       DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
-      AWS_ENDPOINT_URL: http://floci:4566
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:match-events
     command: node dist/main/server.js
     ports:
       - '3000:3000'
