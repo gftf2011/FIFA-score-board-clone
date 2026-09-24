@@ -39,6 +39,8 @@ Redis pub/sub → Stream (stream-server.ts, :3001) → SSE para os clientes
 | `npm run up:seed`      | Sobe a stack e roda o seed                                  |
 | `npm run seed:docker`  | Roda o seed dentro do Docker                                |
 | `npm run simulate`     | Dispara uma partida ao vivo pela API (`scripts/…`)          |
+| `npm run mcp`          | Sobe o MCP server (stdio) de status dos jogos               |
+| `npm run mcp:call`     | Invoca uma tool do MCP server pelo terminal (`scripts/…`)   |
 | `npm run logs`         | Segue os logs do serviço `app`                              |
 | `npm run down`         | Derruba a stack (`down:clean` também remove os volumes)     |
 
@@ -67,6 +69,46 @@ Redis pub/sub → Stream (stream-server.ts, :3001) → SSE para os clientes
 | `POST /matches/:id/finish`     | ingestão (`:3000`)  | Encerra uma partida em andamento (204)      |
 | `GET  /matches/:id/stream`     | stream (`:3001`)    | Stream SSE dos eventos da partida em tempo real |
 
+## MCP server (status dos jogos)
+
+Um **MCP server** (protocolo [MCP](https://modelcontextprotocol.io/), transporte stdio) que expõe o status das partidas como _tools_ para um agente (ex.: Claude Code) consultar. É **somente-leitura**: lê o read model no Postgres (`PrismaMatchStatusQuery`) e não altera nenhum estado do jogo.
+
+**Pré-requisito:** Postgres no ar com dados (`npm run up:seed`). O servidor usa `DATABASE_URL` (padrão: banco local do docker-compose).
+
+### Tools
+
+| Tool               | Argumentos                                    | Descrição                                              |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------ |
+| `list_matches`     | `status?`, `competitionId?`                   | Lista as partidas (recentes primeiro) com placar/minuto|
+| `get_match_status` | `matchId` (obrigatório)                       | Status atual de uma partida (placar, minuto, times)    |
+
+Cada partida retorna também um `scoreline` pronto, ex.: `"ARG 2 x 1 FRA"`.
+
+### Como usar
+
+**No Claude Code / clientes MCP.** O arquivo `.mcp.json` na raiz já registra o servidor `fifa-score-board`. Reinicie o `claude` nesta pasta (aprove o servidor do projeto), confirme com `claude mcp list` e pergunte em linguagem natural — o cliente chama as tools sozinho:
+
+> _"Quais jogos estão em andamento?"_ · _"Qual o status do jogo wc-2022-semifinal?"_
+
+O cliente sobe o `npm run mcp` por baixo dos panos; você **não** roda o servidor na mão.
+
+**Pelo terminal (uma chamada por vez).** O script sobe o servidor internamente, faz a chamada e encerra — **não** precisa do `npm run mcp` rodando à parte:
+
+```bash
+npm run mcp:call list_matches
+npm run mcp:call list_matches '{"status":"IN_PROGRESS"}'
+npm run mcp:call list_matches '{"competitionId":"wc-2022"}'
+npm run mcp:call get_match_status '{"matchId":"wc-2022-semifinal"}'
+```
+
+Sintaxe: `./scripts/mcp-call.sh <tool> [argumentos-em-json]` (sem argumentos, usa `{}`).
+
+**Com o MCP Inspector (UI web).** Para explorar as tools visualmente:
+
+```bash
+npx @modelcontextprotocol/inspector npm run mcp
+```
+
 ## Estrutura (Clean Architecture)
 
 Organizada por _feature module_ (`match`) mais um `shared`. As dependências
@@ -86,13 +128,14 @@ src/
 │   │   └── consumers/        #     Projeção do evento no read model
 │   ├── infrastructure/       #   Implementações concretas dos ports
 │   │   ├── repositories/     #     Prisma (raw queries) e Redis
+│   │   ├── queries/          #     Read models (ex.: status dos jogos p/ o MCP)
 │   │   └── publishers/       #     SNS, Redis pub/sub, Outbox
 │   ├── presentation/         #   Adaptadores de entrega
 │   │   ├── http/             #     Controller Fastify
 │   │   └── lambda/           #     Handler SQS→projeção
 │   └── main/                 #   Composition roots (api, lambda, relay)
 ├── shared/                   # Blocos reutilizáveis (UnitOfWork, clients, erros)
-└── main/                     # Entrypoints: server (ingestão), stream-server, sqs-worker, outbox-relay
+└── main/                     # Entrypoints: server (ingestão), stream-server, sqs-worker, outbox-relay, mcp-server
 ```
 
 - **domain**: não importa nada de outras camadas.

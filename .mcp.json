@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fifa-score-board": {
+      "command": "npx",
+      "args": ["tsx", "src/main/mcp-server.ts"],
+      "env": {
+        "DATABASE_URL": "postgresql://fifa:fifa@localhost:5432/fifa?schema=public"
+      }
+    }
+  }
+}
