@@ -1,98 +1,98 @@
 # FIFA-score-board-clone
 
-API em Node.js construída com [Fastify](https://fastify.dev/), TypeScript e **Clean Architecture**, para acompanhar partidas de futebol ao vivo. O estado é persistido no PostgreSQL (fonte da verdade) e projetado no Redis (read model + pub/sub) por um pipeline orientado a eventos.
+Node.js API built with [Fastify](https://fastify.dev/), TypeScript and **Clean Architecture**, to follow football matches live. State is persisted in PostgreSQL (source of truth) and projected into Redis (read model + pub/sub) by an event-driven pipeline.
 
-## Requisitos
+## Requirements
 
 - Node.js >= 20
-- Docker + Docker Compose (para subir Postgres, Redis e o emulador AWS)
+- Docker + Docker Compose (to run Postgres, Redis and the AWS emulator)
 
-## Arquitetura orientada a eventos
+## Event-driven architecture
 
 ```
-HTTP →  Ingestão (server.ts, :3000)
-          └─ grava a partida + o evento no outbox   (uma única transação Postgres)
-Relay do outbox  → lê outbox_messages → publica no SNS
-SNS → SQS → Worker/Lambda  → projeta no Redis (read model) + publica no pub/sub
-Redis pub/sub → Stream (stream-server.ts, :3001) → SSE para os clientes
+HTTP →  Ingestion (server.ts, :3000)
+          └─ writes the match + the event to the outbox   (a single Postgres transaction)
+Outbox relay  → reads outbox_messages → publishes to SNS
+SNS → SQS → Worker/Lambda  → projects into Redis (read model) + publishes to pub/sub
+Redis pub/sub → Stream (stream-server.ts, :3001) → SSE to the clients
 ```
 
-- **Dois servidores separados** (escalam de forma independente): **ingestão** (`src/main/server.ts`, escrita → Postgres+outbox) e **stream** (`src/main/stream-server.ts`, SSE ao vivo → Redis). Um processa comandos; o outro segura as conexões SSE.
-- **Transactional outbox**: a ingestão não publica direto no broker. O evento é gravado na tabela `outbox_messages` na **mesma transação** que persiste a partida (sem dual-write). O **relay** (`src/main/outbox-relay.ts`) lê as pendentes e publica no SNS — _at-least-once_, com consumidores idempotentes.
-- **Projeção (read model)**: o worker consome a fila e materializa a partida no Redis (linha do tempo dos eventos), publicando também no canal pub/sub. O servidor de stream mantém o estado em memória por partida e envia o snapshot + eventos ao vivo.
+- **Two separate servers** (scale independently): **ingestion** (`src/main/server.ts`, writes → Postgres+outbox) and **stream** (`src/main/stream-server.ts`, live SSE → Redis). One processes commands; the other holds the SSE connections.
+- **Transactional outbox**: ingestion does not publish straight to the broker. The event is written to the `outbox_messages` table in the **same transaction** that persists the match (no dual-write). The **relay** (`src/main/outbox-relay.ts`) reads the pending ones and publishes to SNS — _at-least-once_, with idempotent consumers.
+- **Projection (read model)**: the worker consumes the queue and materializes the match in Redis (the event timeline), also publishing to the pub/sub channel. The stream server keeps per-match state in memory and sends the snapshot + live events.
 
 ## Scripts
 
-| Comando                | Descrição                                                   |
+| Command                | Description                                                 |
 | ---------------------- | ----------------------------------------------------------- |
-| `npm run dev`          | Sobe o servidor de ingestão em watch (`:3000`)              |
-| `npm run dev:stream`   | Sobe o servidor de stream em watch (`:3001`)                |
-| `npm run worker:dev`   | Worker que consome a fila SQS e projeta no Redis (watch)    |
-| `npm run relay:dev`    | Relay do outbox: publica os eventos pendentes no SNS (watch)|
-| `npm run seed`         | Popula o banco (Copa do Mundo FIFA 2022 — 64 partidas)      |
-| `npm run build`        | Compila o TypeScript para `dist/`                           |
-| `npm start`            | Executa o build gerado (`dist/main/server.js`)              |
-| `npm run typecheck`    | Checagem de tipos sem emitir arquivos                       |
-| `npm run lint`         | Roda o ESLint (`lint:fix` corrige o automático)             |
-| `npm run format`       | Formata com Prettier (`format:check` só verifica)           |
-| `npm run up`           | Sobe toda a stack no Docker (build + detach)                |
-| `npm run up:seed`      | Sobe a stack e roda o seed                                  |
-| `npm run seed:docker`  | Roda o seed dentro do Docker                                |
-| `npm run simulate`     | Dispara uma partida ao vivo pela API (`scripts/…`)          |
-| `npm run mcp`          | Sobe o MCP server (stdio) de status dos jogos               |
-| `npm run mcp:call`     | Invoca uma tool do MCP server pelo terminal (`scripts/…`)   |
-| `npm run logs`         | Segue os logs do serviço `app`                              |
-| `npm run down`         | Derruba a stack (`down:clean` também remove os volumes)     |
+| `npm run dev`          | Runs the ingestion server in watch mode (`:3000`)           |
+| `npm run dev:stream`   | Runs the stream server in watch mode (`:3001`)              |
+| `npm run worker:dev`   | Worker that consumes the SQS queue and projects into Redis (watch) |
+| `npm run relay:dev`    | Outbox relay: publishes pending events to SNS (watch)       |
+| `npm run seed`         | Seeds the database (FIFA World Cup 2022 — 64 matches)       |
+| `npm run build`        | Compiles TypeScript to `dist/`                              |
+| `npm start`            | Runs the generated build (`dist/main/server.js`)           |
+| `npm run typecheck`    | Type-checks without emitting files                          |
+| `npm run lint`         | Runs ESLint (`lint:fix` auto-fixes)                         |
+| `npm run format`       | Formats with Prettier (`format:check` only checks)          |
+| `npm run up`           | Brings the whole stack up in Docker (build + detach)        |
+| `npm run up:seed`      | Brings the stack up and runs the seed                       |
+| `npm run seed:docker`  | Runs the seed inside Docker                                 |
+| `npm run simulate`     | Drives a live match through the API (`scripts/…`)           |
+| `npm run mcp`          | Starts the MCP server (stdio) for match status              |
+| `npm run mcp:call`     | Invokes an MCP server tool from the terminal (`scripts/…`)  |
+| `npm run logs`         | Follows the `app` service logs                              |
+| `npm run down`         | Tears the stack down (`down:clean` also removes volumes)    |
 
-## Variáveis de ambiente
+## Environment variables
 
-| Variável            | Padrão                        | Descrição                                  |
+| Variable            | Default                       | Description                                |
 | ------------------- | ----------------------------- | ------------------------------------------ |
-| `NODE_ENV`          | `development`                 | Ambiente de execução                       |
-| `HOST`              | `0.0.0.0`                     | Host de bind dos servidores                |
-| `PORT`              | `3000`                        | Porta do servidor de ingestão              |
-| `STREAM_PORT`       | `3001`                        | Porta do servidor de stream                |
-| `LOG_LEVEL`         | `info`                        | Nível de log do logger                     |
-| `DATABASE_URL`      | —                             | Conexão PostgreSQL (Prisma)                |
-| `REDIS_URL`         | `redis://localhost:6379`      | Conexão Redis (projeção + pub/sub)         |
-| `SNS_TOPIC_ARN`     | —                             | Tópico SNS de destino (relay do outbox)    |
-| `SQS_QUEUE_NAME`    | `match-events-notify`         | Fila SQS consumida pelo worker             |
-| `AWS_ENDPOINT_URL`  | —                             | Endpoint AWS (emulador local, ex.: floci)  |
-| `AWS_REGION`        | —                             | Região AWS                                 |
+| `NODE_ENV`          | `development`                 | Runtime environment                        |
+| `HOST`              | `0.0.0.0`                     | Bind host for the servers                  |
+| `PORT`              | `3000`                        | Ingestion server port                      |
+| `STREAM_PORT`       | `3001`                        | Stream server port                         |
+| `LOG_LEVEL`         | `info`                        | Logger level                               |
+| `DATABASE_URL`      | —                             | PostgreSQL connection (Prisma)             |
+| `REDIS_URL`         | `redis://localhost:6379`      | Redis connection (projection + pub/sub)    |
+| `SNS_TOPIC_ARN`     | —                             | Target SNS topic (outbox relay)            |
+| `SQS_QUEUE_NAME`    | `match-events-notify`         | SQS queue consumed by the worker           |
+| `AWS_ENDPOINT_URL`  | —                             | AWS endpoint (local emulator, e.g. floci)  |
+| `AWS_REGION`        | —                             | AWS region                                 |
 
 ## Endpoints
 
-| Método + rota                  | Servidor            | Descrição                                   |
+| Method + route                 | Server              | Description                                 |
 | ------------------------------ | ------------------- | ------------------------------------------- |
-| `POST /matches/:id/start`      | ingestão (`:3000`)  | Inicia uma partida agendada (204)           |
-| `POST /matches/:id/events`     | ingestão (`:3000`)  | Registra um evento (gol, falta, intervalo…) |
-| `POST /matches/:id/finish`     | ingestão (`:3000`)  | Encerra uma partida em andamento (204)      |
-| `GET  /matches/:id/stream`     | stream (`:3001`)    | Stream SSE dos eventos da partida em tempo real |
+| `POST /matches/:id/start`      | ingestion (`:3000`) | Starts a scheduled match (204)              |
+| `POST /matches/:id/events`     | ingestion (`:3000`) | Registers an event (goal, foul, half-time…) |
+| `POST /matches/:id/finish`     | ingestion (`:3000`) | Finishes a match in progress (204)          |
+| `GET  /matches/:id/stream`     | stream (`:3001`)    | SSE stream of the match events in real time |
 
-## MCP server (status dos jogos)
+## MCP server (match status)
 
-Um **MCP server** (protocolo [MCP](https://modelcontextprotocol.io/), transporte stdio) que expõe o status das partidas como _tools_ para um agente (ex.: Claude Code) consultar. É **somente-leitura**: lê o read model no Postgres (`PrismaMatchStatusQuery`) e não altera nenhum estado do jogo.
+An **MCP server** ([MCP](https://modelcontextprotocol.io/) protocol, stdio transport) that exposes match status as _tools_ for an agent (e.g. Claude Code) to query. It is **read-only**: it reads the read model from Postgres (`PrismaMatchStatusQuery`) and never changes any match state.
 
-**Pré-requisito:** Postgres no ar com dados (`npm run up:seed`). O servidor usa `DATABASE_URL` (padrão: banco local do docker-compose).
+**Prerequisite:** Postgres up with data (`npm run up:seed`). The server uses `DATABASE_URL` (default: the local docker-compose database).
 
 ### Tools
 
-| Tool               | Argumentos                                    | Descrição                                              |
+| Tool               | Arguments                                     | Description                                            |
 | ------------------ | --------------------------------------------- | ------------------------------------------------------ |
-| `list_matches`     | `status?`, `competitionId?`                   | Lista as partidas (recentes primeiro) com placar/minuto|
-| `get_match_status` | `matchId` (obrigatório)                       | Status atual de uma partida (placar, minuto, times)    |
+| `list_matches`     | `status?`, `competitionId?`                   | Lists matches (most recent first) with score/minute    |
+| `get_match_status` | `matchId` (required)                          | Current status of one match (score, minute, teams)     |
 
-Cada partida retorna também um `scoreline` pronto, ex.: `"ARG 2 x 1 FRA"`.
+Each match also returns a ready-made `scoreline`, e.g. `"ARG 2 x 1 FRA"`.
 
-### Como usar
+### How to use
 
-**No Claude Code / clientes MCP.** O arquivo `.mcp.json` na raiz já registra o servidor `fifa-score-board`. Reinicie o `claude` nesta pasta (aprove o servidor do projeto), confirme com `claude mcp list` e pergunte em linguagem natural — o cliente chama as tools sozinho:
+**In Claude Code / MCP clients.** The `.mcp.json` file at the root already registers the `fifa-score-board` server. Restart `claude` in this folder (approve the project server), confirm with `claude mcp list`, and ask in natural language — the client calls the tools on its own:
 
-> _"Quais jogos estão em andamento?"_ · _"Qual o status do jogo wc-2022-semifinal?"_
+> _"Which matches are in progress?"_ · _"What's the status of match wc-2022-semifinal?"_
 
-O cliente sobe o `npm run mcp` por baixo dos panos; você **não** roda o servidor na mão.
+The client runs `npm run mcp` under the hood; you do **not** start the server yourself.
 
-**Pelo terminal (uma chamada por vez).** O script sobe o servidor internamente, faz a chamada e encerra — **não** precisa do `npm run mcp` rodando à parte:
+**From the terminal (one call at a time).** The script starts the server internally, makes the call, and exits — it does **not** need `npm run mcp` running separately:
 
 ```bash
 npm run mcp:call list_matches
@@ -101,57 +101,57 @@ npm run mcp:call list_matches '{"competitionId":"wc-2022"}'
 npm run mcp:call get_match_status '{"matchId":"wc-2022-semifinal"}'
 ```
 
-Sintaxe: `./scripts/mcp-call.sh <tool> [argumentos-em-json]` (sem argumentos, usa `{}`).
+Syntax: `./scripts/mcp-call.sh <tool> [json-arguments]` (without arguments, it uses `{}`).
 
-**Com o MCP Inspector (UI web).** Para explorar as tools visualmente:
+**With the MCP Inspector (web UI).** To explore the tools visually:
 
 ```bash
 npx @modelcontextprotocol/inspector npm run mcp
 ```
 
-## Estrutura (Clean Architecture)
+## Structure (Clean Architecture)
 
-Organizada por _feature module_ (`match`) mais um `shared`. As dependências
-apontam sempre de fora para dentro: as camadas externas conhecem as internas,
-nunca o contrário.
+Organized by _feature module_ (`match`) plus a `shared`. Dependencies always
+point from the outside in: outer layers know the inner ones, never the other way
+around.
 
 ```
 src/
-├── match/                    # Feature module da partida
-│   ├── domain/               #   Regras de negócio puras
-│   │   ├── aggregates/       #     Agregado Match (estado + invariantes)
+├── match/                    # Match feature module
+│   ├── domain/               #   Pure business rules
+│   │   ├── aggregates/       #     Match aggregate (state + invariants)
 │   │   ├── entities/         #     Competition, Team, Player, Goal
-│   │   ├── publishers/       #     Port de publicação de eventos
-│   │   └── repositories/     #     Ports (match, projeção, outbox)
-│   ├── application/          #   Casos de uso e consumidores
+│   │   ├── publishers/       #     Event publishing port
+│   │   └── repositories/     #     Ports (match, projection, outbox)
+│   ├── application/          #   Use cases and consumers
 │   │   ├── use-cases/        #     Start/Finish/RegisterEvent/RelayOutbox
-│   │   └── consumers/        #     Projeção do evento no read model
-│   ├── infrastructure/       #   Implementações concretas dos ports
-│   │   ├── repositories/     #     Prisma (raw queries) e Redis
-│   │   ├── queries/          #     Read models (ex.: status dos jogos p/ o MCP)
+│   │   └── consumers/        #     Event projection into the read model
+│   ├── infrastructure/       #   Concrete implementations of the ports
+│   │   ├── repositories/     #     Prisma (raw queries) and Redis
+│   │   ├── queries/          #     Read models (e.g. match status for the MCP)
 │   │   └── publishers/       #     SNS, Redis pub/sub, Outbox
-│   ├── presentation/         #   Adaptadores de entrega
-│   │   ├── http/             #     Controller Fastify
-│   │   └── lambda/           #     Handler SQS→projeção
+│   ├── presentation/         #   Delivery adapters
+│   │   ├── http/             #     Fastify controller
+│   │   └── lambda/           #     SQS→projection handler
 │   └── main/                 #   Composition roots (api, lambda, relay)
-├── shared/                   # Blocos reutilizáveis (UnitOfWork, clients, erros)
-└── main/                     # Entrypoints: server (ingestão), stream-server, sqs-worker, outbox-relay, mcp-server
+├── shared/                   # Reusable building blocks (UnitOfWork, clients, errors)
+└── main/                     # Entrypoints: server (ingestion), stream-server, sqs-worker, outbox-relay, mcp-server
 ```
 
-- **domain**: não importa nada de outras camadas.
-- **application**: depende apenas de `domain`; define _ports_ implementados fora.
-- **infrastructure**: implementa os _ports_ (Prisma via raw queries, Redis, AWS).
-- **presentation**: adapta o mundo externo (HTTP/SQS) para os casos de uso.
-- **main**: injeta as dependências e inicia cada processo.
+- **domain**: imports nothing from other layers.
+- **application**: depends only on `domain`; defines _ports_ implemented outside.
+- **infrastructure**: implements the _ports_ (Prisma via raw queries, Redis, AWS).
+- **presentation**: adapts the outside world (HTTP/SQS) to the use cases.
+- **main**: wires the dependencies and starts each process.
 
-## Desenvolvimento
+## Development
 
 ```bash
 npm install
-npm run up:seed        # sobe a stack (Postgres, Redis, AWS emulado) e popula os dados
-npm run simulate       # dirige uma partida ao vivo pela API
+npm run up:seed        # brings the stack up (Postgres, Redis, emulated AWS) and seeds the data
+npm run simulate       # drives a live match through the API
 ```
 
-Para rodar os processos localmente (fora do Docker), suba a infraestrutura com
-`npm run up` e então `npm run dev`, `npm run dev:stream`, `npm run worker:dev` e `npm run relay:dev`
-em terminais separados.
+To run the processes locally (outside Docker), bring the infrastructure up with
+`npm run up` and then run `npm run dev`, `npm run dev:stream`, `npm run worker:dev` and `npm run relay:dev`
+in separate terminals.
