@@ -22,6 +22,7 @@
     "up:seed": "docker compose up -d --build && docker compose run --rm seed",
     "seed:docker": "docker compose run --rm seed",
     "simulate": "bash scripts/simulate-match.sh",
+    "stream": "bash scripts/stream-match.sh",
     "logs": "docker compose logs -f app",
     "down": "docker compose down",
     "down:clean": "docker compose down -v"

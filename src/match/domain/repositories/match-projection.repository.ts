@@ -1,32 +1,17 @@
-import type { MatchEvent, MatchStatus } from '../aggregates/match.aggregate';
+import type { MatchEvent } from '../aggregates/match.aggregate';
+import type { MatchSnapshot } from '../aggregates/match-projection.aggregate';
 
-/** Credita um gol a um time (dedup pelo id do evento). */
-export interface IncrementScoreInput {
-  readonly matchId: string;
-  readonly teamId: string;
-  readonly eventId: string;
-}
-
-/** Define o status materializado da partida. */
-export interface SetStatusInput {
-  readonly matchId: string;
-  readonly status: MatchStatus;
-}
+export type { MatchSnapshot };
 
 /**
- * Projeção (read model) da partida no Redis, com operações granulares. Cada
- * operação é idempotente e tolerante a reordenação (via `sequence`/`eventId`),
- * para que o consumidor as combine conforme o tipo do evento.
+ * Projeção (read model) da partida no Redis. A linha do tempo de eventos é a
+ * única fonte persistida; o estado derivado (status, placar) é reconstruído a
+ * partir dela pelo reducer de projeção ({@link applyEvent}). Assim há uma única
+ * definição da semântica de projeção, sem duplicação.
  */
 export interface MatchProjectionRepository {
-  /**
-   * Comum a todo evento: guarda o evento na linha do tempo (por `sequence`) e
-   * atualiza os metadados da partida. Recebe o próprio {@link MatchEvent} — é um
-   * armazenamento mecânico, sem interpretação de tipo.
-   */
+  /** Guarda o evento na linha do tempo (por `sequence`, membro único/idempotente). */
   appendEvent(event: MatchEvent): Promise<void>;
-  /** Gol: adiciona o id do evento ao set do time (placar = cardinalidade). */
-  incrementScore(input: IncrementScoreInput): Promise<void>;
-  /** Ciclo de vida: materializa o status (criado no início da partida). */
-  setStatus(input: SetStatusInput): Promise<void>;
+  /** Reconstrói o estado atual da partida, ou `null` se não houver eventos ainda. */
+  loadSnapshot(matchId: string): Promise<MatchSnapshot | null>;
 }

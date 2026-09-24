@@ -130,11 +130,14 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     environment:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
       DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
+      REDIS_URL: redis://redis:6379
     command: node dist/main/server.js
     ports:
       - '3000:3000'

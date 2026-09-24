@@ -8,6 +8,8 @@
 #
 # Variáveis de ambiente:
 #   BASE_URL   URL da API (padrão: http://localhost:3000)
+#   DELAY      Segundos de espera após cada chamada (padrão: 30) — dá tempo de
+#              acompanhar os eventos chegando no stream SSE.
 #
 # Pré-requisito: a partida MATCH_ID já deve existir e estar SCHEDULED, com
 # time A = "arg" e time B = "fra" (ids usados abaixo). Não há endpoint de
@@ -17,8 +19,10 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 MATCH_ID="${1:-wc-2022-semifinal}"
+DELAY="${DELAY:-30}"
 
-# POST opcional com corpo JSON; imprime status HTTP e resposta.
+# POST opcional com corpo JSON; imprime status HTTP e resposta e então aguarda
+# DELAY segundos antes da próxima chamada (para acompanhar o stream ao vivo).
 post() {
   local path="$1" body="${2:-}"
   echo "▶ POST ${path}"
@@ -33,6 +37,8 @@ post() {
   if [ -s /tmp/sim-resp ]; then
     echo "  $(cat /tmp/sim-resp)"
   fi
+  echo "  … aguardando ${DELAY}s"
+  sleep "${DELAY}"
   echo
 }
 

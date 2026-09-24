@@ -61,6 +61,7 @@ SNS → SQS → Worker/Lambda  → projeta no Redis (read model) + publica no pu
 | `POST /matches/:id/start`      | Inicia uma partida agendada (204)           |
 | `POST /matches/:id/events`     | Registra um evento (gol, falta, intervalo…) |
 | `POST /matches/:id/finish`     | Encerra uma partida em andamento (204)      |
+| `GET  /matches/:id/stream`     | Stream SSE dos eventos da partida em tempo real |
 
 ## Estrutura (Clean Architecture)
 
