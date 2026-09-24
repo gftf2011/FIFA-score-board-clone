@@ -125,22 +125,35 @@ services:
     command: npx prisma migrate deploy
 
   # A API: sobe o servidor (migrations já aplicadas pelo serviço `migrate`).
+  # Servidor de INGESTÃO: comandos de escrita (start/finish/events) → Postgres + outbox.
   app:
     build: .
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
     environment:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
       DATABASE_URL: postgresql://fifa:fifa@postgres:5432/fifa?schema=public
-      REDIS_URL: redis://redis:6379
     command: node dist/main/server.js
     ports:
       - '3000:3000'
+
+  # Servidor de STREAM: SSE ao vivo (GET /matches/:id/stream) → Redis (pub/sub + snapshot).
+  stream:
+    build: .
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      STREAM_PORT: 3001
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    command: node dist/main/stream-server.js
+    ports:
+      - '3001:3001'
 
   # Seed (sob demanda): `docker compose run --rm seed`. Não sobe no `up` normal.
   seed:

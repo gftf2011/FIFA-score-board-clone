@@ -8,11 +8,13 @@
   },
   "scripts": {
     "dev": "tsx watch src/main/server.ts",
+    "dev:stream": "tsx watch src/main/stream-server.ts",
     "worker:dev": "tsx watch src/main/sqs-worker.ts",
     "relay:dev": "tsx watch src/main/outbox-relay.ts",
     "seed": "tsx prisma/seed.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main/server.js",
+    "start:stream": "node dist/main/stream-server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

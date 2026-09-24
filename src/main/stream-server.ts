@@ -1,18 +1,19 @@
 import Fastify from 'fastify';
-import { registerMatchIngestionModule } from '../match/main/api/match-ingestion.module';
-import { prisma } from '../shared/infrastructure/prisma/prisma-client';
+import { registerMatchStreamModule } from '../match/main/api/match-stream.module';
+import { redis } from '../shared/infrastructure/redis/redis-client';
 
 /**
- * Servidor de INGESTÃO: recebe os comandos de escrita da partida (start/finish/
- * events), persistindo no Postgres + outbox. O stream ao vivo é servido por um
- * processo separado (src/main/stream-server.ts).
+ * Servidor de STREAM: serve o SSE ao vivo (`GET /matches/:id/stream`), mantendo
+ * o estado do jogo em memória e alimentado pelo pub/sub do Redis. É separado da
+ * ingestão (src/main/server.ts) para escalar de forma independente — este
+ * processo segura as conexões SSE; aquele processa as escritas.
  */
 function buildApp() {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
   });
 
-  registerMatchIngestionModule(app);
+  registerMatchStreamModule(app);
 
   return app;
 }
@@ -20,7 +21,7 @@ function buildApp() {
 async function main(): Promise<void> {
   const app = buildApp();
   const host = process.env.HOST ?? '0.0.0.0';
-  const port = Number(process.env.PORT) || 3000;
+  const port = Number(process.env.STREAM_PORT) || 3001;
 
   try {
     await app.listen({ host, port });
@@ -32,7 +33,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info(`Received ${signal}, shutting down...`);
     await app.close();
-    await prisma.$disconnect();
+    redis.disconnect();
     process.exit(0);
   };
 

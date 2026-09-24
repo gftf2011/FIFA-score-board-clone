@@ -7,15 +7,16 @@
 #   ./scripts/stream-match.sh [MATCH_ID]
 #
 # Variáveis de ambiente:
-#   BASE_URL   URL da API (padrão: http://localhost:3000)
+#   BASE_URL   URL do servidor de STREAM (padrão: http://localhost:3001)
 #
-# Dica: rode este script num terminal e, em outro, dispare a simulação:
+# Dica: rode este script num terminal e, em outro, dispare a simulação (que bate
+# no servidor de ingestão, porta 3000):
 #   ./scripts/simulate-match.sh [MATCH_ID]
 # O primeiro evento é o `snapshot` (estado atual); depois vêm os eventos ao vivo.
 
 set -uo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:3000}"
+BASE_URL="${BASE_URL:-http://localhost:3001}"
 MATCH_ID="${1:-wc-2022-semifinal}"
 URL="${BASE_URL}/matches/${MATCH_ID}/stream"
 

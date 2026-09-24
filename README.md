@@ -10,20 +10,23 @@ API em Node.js construída com [Fastify](https://fastify.dev/), TypeScript e **C
 ## Arquitetura orientada a eventos
 
 ```
-HTTP → API (Fastify)
-         └─ grava a partida + o evento no outbox   (uma única transação Postgres)
+HTTP →  Ingestão (server.ts, :3000)
+          └─ grava a partida + o evento no outbox   (uma única transação Postgres)
 Relay do outbox  → lê outbox_messages → publica no SNS
 SNS → SQS → Worker/Lambda  → projeta no Redis (read model) + publica no pub/sub
+Redis pub/sub → Stream (stream-server.ts, :3001) → SSE para os clientes
 ```
 
-- **Transactional outbox**: a API não publica direto no broker. O evento é gravado na tabela `outbox_messages` na **mesma transação** que persiste a partida (sem dual-write). O **relay** (`src/main/outbox-relay.ts`) lê as mensagens pendentes e publica no SNS — entrega _at-least-once_, com consumidores idempotentes.
-- **Projeção (read model)**: o worker consome a fila e materializa a partida no Redis (HASH de status, ZSET da linha do tempo, SETs de placar), além de publicar no canal pub/sub para assinantes.
+- **Dois servidores separados** (escalam de forma independente): **ingestão** (`src/main/server.ts`, escrita → Postgres+outbox) e **stream** (`src/main/stream-server.ts`, SSE ao vivo → Redis). Um processa comandos; o outro segura as conexões SSE.
+- **Transactional outbox**: a ingestão não publica direto no broker. O evento é gravado na tabela `outbox_messages` na **mesma transação** que persiste a partida (sem dual-write). O **relay** (`src/main/outbox-relay.ts`) lê as pendentes e publica no SNS — _at-least-once_, com consumidores idempotentes.
+- **Projeção (read model)**: o worker consome a fila e materializa a partida no Redis (linha do tempo dos eventos), publicando também no canal pub/sub. O servidor de stream mantém o estado em memória por partida e envia o snapshot + eventos ao vivo.
 
 ## Scripts
 
 | Comando                | Descrição                                                   |
 | ---------------------- | ----------------------------------------------------------- |
-| `npm run dev`          | Sobe a API em modo watch (via `tsx`)                        |
+| `npm run dev`          | Sobe o servidor de ingestão em watch (`:3000`)              |
+| `npm run dev:stream`   | Sobe o servidor de stream em watch (`:3001`)                |
 | `npm run worker:dev`   | Worker que consome a fila SQS e projeta no Redis (watch)    |
 | `npm run relay:dev`    | Relay do outbox: publica os eventos pendentes no SNS (watch)|
 | `npm run seed`         | Popula o banco (Copa do Mundo FIFA 2022 — 64 partidas)      |
@@ -44,8 +47,9 @@ SNS → SQS → Worker/Lambda  → projeta no Redis (read model) + publica no pu
 | Variável            | Padrão                        | Descrição                                  |
 | ------------------- | ----------------------------- | ------------------------------------------ |
 | `NODE_ENV`          | `development`                 | Ambiente de execução                       |
-| `HOST`              | `0.0.0.0`                     | Host de bind da API                        |
-| `PORT`              | `3000`                        | Porta HTTP                                 |
+| `HOST`              | `0.0.0.0`                     | Host de bind dos servidores                |
+| `PORT`              | `3000`                        | Porta do servidor de ingestão              |
+| `STREAM_PORT`       | `3001`                        | Porta do servidor de stream                |
 | `LOG_LEVEL`         | `info`                        | Nível de log do logger                     |
 | `DATABASE_URL`      | —                             | Conexão PostgreSQL (Prisma)                |
 | `REDIS_URL`         | `redis://localhost:6379`      | Conexão Redis (projeção + pub/sub)         |
@@ -56,12 +60,12 @@ SNS → SQS → Worker/Lambda  → projeta no Redis (read model) + publica no pu
 
 ## Endpoints
 
-| Método + rota                  | Descrição                                   |
-| ------------------------------ | ------------------------------------------- |
-| `POST /matches/:id/start`      | Inicia uma partida agendada (204)           |
-| `POST /matches/:id/events`     | Registra um evento (gol, falta, intervalo…) |
-| `POST /matches/:id/finish`     | Encerra uma partida em andamento (204)      |
-| `GET  /matches/:id/stream`     | Stream SSE dos eventos da partida em tempo real |
+| Método + rota                  | Servidor            | Descrição                                   |
+| ------------------------------ | ------------------- | ------------------------------------------- |
+| `POST /matches/:id/start`      | ingestão (`:3000`)  | Inicia uma partida agendada (204)           |
+| `POST /matches/:id/events`     | ingestão (`:3000`)  | Registra um evento (gol, falta, intervalo…) |
+| `POST /matches/:id/finish`     | ingestão (`:3000`)  | Encerra uma partida em andamento (204)      |
+| `GET  /matches/:id/stream`     | stream (`:3001`)    | Stream SSE dos eventos da partida em tempo real |
 
 ## Estrutura (Clean Architecture)
 
@@ -88,7 +92,7 @@ src/
 │   │   └── lambda/           #     Handler SQS→projeção
 │   └── main/                 #   Composition roots (api, lambda, relay)
 ├── shared/                   # Blocos reutilizáveis (UnitOfWork, clients, erros)
-└── main/                     # Entrypoints: server, sqs-worker, outbox-relay
+└── main/                     # Entrypoints: server (ingestão), stream-server, sqs-worker, outbox-relay
 ```
 
 - **domain**: não importa nada de outras camadas.
@@ -106,5 +110,5 @@ npm run simulate       # dirige uma partida ao vivo pela API
 ```
 
 Para rodar os processos localmente (fora do Docker), suba a infraestrutura com
-`npm run up` e então `npm run dev`, `npm run worker:dev` e `npm run relay:dev`
+`npm run up` e então `npm run dev`, `npm run dev:stream`, `npm run worker:dev` e `npm run relay:dev`
 em terminais separados.
