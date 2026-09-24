@@ -1,4 +1,9 @@
-import { PrismaClient, type Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  type Prisma,
+  type CompetitionType,
+  type MatchEventType,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -9,7 +14,11 @@ const prisma = new PrismaClient();
 // DEFENDER / MIDFIELDER / FORWARD).
 // ---------------------------------------------------------------------------
 
-const COMPETITION = { id: 'wc-2022', name: 'Copa do Mundo FIFA 2022', type: 'CUP' };
+const COMPETITION: { id: string; name: string; type: CompetitionType } = {
+  id: 'wc-2022',
+  name: 'Copa do Mundo FIFA 2022',
+  type: 'CUP',
+};
 const ARG = { id: 'arg', name: 'Argentina', shortName: 'ARG' };
 const FRA = { id: 'fra', name: 'França', shortName: 'FRA' };
 const MATCH_ID = 'wc-2022-final';
@@ -92,7 +101,7 @@ const players = [...argentina, ...franca];
 interface SeedEvent {
   sequence: number;
   minute: number;
-  type: string;
+  type: MatchEventType;
   payload: Prisma.InputJsonValue;
 }
 

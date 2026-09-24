@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Dispara os endpoints da API simulando uma partida: início → chute + gol →
-# substituição → chute + gol → encerramento.
+# intervalo → substituição → chute + gol → encerramento.
 #
 # Uso:
 #   ./scripts/simulate-match.sh [MATCH_ID]
@@ -46,6 +46,10 @@ post "/matches/${MATCH_ID}/events" \
   '{"type":"PENALTY_KICK","player":{"id":"arg-10","name":"Lionel Messi","teamId":"arg","shirtNumber":10,"position":"FORWARD"}}'
 post "/matches/${MATCH_ID}/events" \
   '{"type":"GOAL","goal":{"id":"sim-goal-1","playerId":"arg-10","playerName":"Lionel Messi","teamId":"arg","minute":23}}'
+
+# Intervalo (fim do primeiro tempo).
+post "/matches/${MATCH_ID}/events" \
+  '{"type":"HALF_TIME"}'
 
 # Substituição na França (sai Giroud, entra Kolo Muani).
 post "/matches/${MATCH_ID}/events" \

@@ -169,7 +169,7 @@ export class PrismaMatchRepository implements MatchRepository {
       const { teamA, teamB } = match.score;
       await tx.$executeRaw`
         UPDATE matches SET
-          status = ${match.status},
+          status = ${match.status}::"MatchStatus",
           minute = ${match.minute},
           started_at = ${match.startedAt},
           finished_at = ${match.finishedAt},
@@ -193,7 +193,7 @@ export class PrismaMatchRepository implements MatchRepository {
         (id, competition_id, status, minute, started_at, finished_at, updated_at, sequence,
          team_a_id, team_b_id, team_a_goals, team_b_goals)
       VALUES
-        (${match.id}, ${match.competition.id}, ${match.status}, ${match.minute}, ${match.startedAt},
+        (${match.id}, ${match.competition.id}, ${match.status}::"MatchStatus", ${match.minute}, ${match.startedAt},
          ${match.finishedAt}, ${match.updatedAt}, ${match.sequence}, ${teamA.team.id}, ${teamB.team.id},
          ${teamA.goals}, ${teamB.goals})
     `;
@@ -214,7 +214,7 @@ export class PrismaMatchRepository implements MatchRepository {
       const { id, type, minute, sequence, matchId, competitionId, ...payload } = event;
       await tx.$executeRaw`
         INSERT INTO match_events (id, match_id, competition_id, sequence, type, minute, payload)
-        VALUES (${id}, ${match.id}, ${competitionId}, ${sequence}, ${type}, ${minute}, ${JSON.stringify(payload)}::jsonb)
+        VALUES (${id}, ${match.id}, ${competitionId}, ${sequence}, ${type}::"MatchEventType", ${minute}, ${JSON.stringify(payload)}::jsonb)
       `;
     }
   }

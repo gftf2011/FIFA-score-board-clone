@@ -46,6 +46,8 @@ export enum MatchEventType {
   Substitution = 'SUBSTITUTION',
   /** Início da partida. */
   MatchStarted = 'MATCH_STARTED',
+  /** Intervalo (fim do primeiro tempo). */
+  HalfTime = 'HALF_TIME',
   /** Encerramento da partida. */
   MatchFinished = 'MATCH_FINISHED',
 }
@@ -405,6 +407,13 @@ export class Match {
 
     this._updatedAt = timestamp;
     this.registerPlayerEvent(MatchEventType.GoalKick, player);
+  }
+
+  /** Registra o intervalo (fim do primeiro tempo) na linha do tempo. */
+  registerHalfTime(): void {
+    this.ensureInProgress();
+    this._updatedAt = new Date();
+    this.addEvent({ type: MatchEventType.HalfTime });
   }
 
   /** Registra uma substituição: jogador que sai e jogador que entra. */

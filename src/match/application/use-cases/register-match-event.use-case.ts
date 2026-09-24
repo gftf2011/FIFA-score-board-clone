@@ -44,6 +44,7 @@ export type RegisterMatchEventInput = { readonly matchId: string } & (
       readonly playerIn: PlayerData;
     }
   | { readonly type: SinglePlayerEventType; readonly player: PlayerData }
+  | { readonly type: MatchEventType.HalfTime }
 );
 
 /**
@@ -108,6 +109,9 @@ export class RegisterMatchEventUseCase implements UseCase<RegisterMatchEventInpu
         return;
       case MatchEventType.GoalKick:
         match.registerGoalKick(this.buildPlayer(input.player));
+        return;
+      case MatchEventType.HalfTime:
+        match.registerHalfTime();
         return;
     }
   }

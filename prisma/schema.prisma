@@ -10,6 +10,46 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums nativos do Postgres. Os valores espelham exatamente os enums do domínio
+// (match.aggregate.ts, competition.entity.ts, player.entity.ts), de modo que o
+// banco também passa a validar os valores permitidos.
+
+enum CompetitionType {
+  LEAGUE
+  CUP
+}
+
+enum PlayerPosition {
+  GOALKEEPER
+  DEFENDER
+  MIDFIELDER
+  FORWARD
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  HALF_TIME
+  FINISHED
+}
+
+enum MatchEventType {
+  GOAL
+  OWN_GOAL
+  PENALTY_KICK
+  PENALTY_SHOOTOUT
+  CORNER_KICK
+  FREE_KICK
+  DIRECT_FREE_KICK
+  INDIRECT_FREE_KICK
+  THROW_IN
+  GOAL_KICK
+  SUBSTITUTION
+  MATCH_STARTED
+  HALF_TIME
+  MATCH_FINISHED
+}
+
 model Team {
   id        String @id
   name      String
@@ -19,9 +59,9 @@ model Team {
 }
 
 model Competition {
-  id   String @id
+  id   String          @id
   name String
-  type String
+  type CompetitionType
 
   @@map("competitions")
 }
@@ -30,17 +70,17 @@ model Player {
   id          String @id
   teamId      String @map("team_id")
   name        String
-  shirtNumber Int    @map("shirt_number")
-  position    String
+  shirtNumber Int            @map("shirt_number")
+  position    PlayerPosition
 
   @@index([teamId])
   @@map("players")
 }
 
 model Match {
-  id            String    @id
-  competitionId String    @map("competition_id")
-  status        String
+  id            String      @id
+  competitionId String      @map("competition_id")
+  status        MatchStatus
   minute        Int
   startedAt  DateTime? @map("started_at")
   finishedAt DateTime? @map("finished_at")
@@ -68,10 +108,10 @@ model Goal {
 
 model MatchEvent {
   id            String @id
-  matchId       String @map("match_id")
-  competitionId String @map("competition_id")
+  matchId       String         @map("match_id")
+  competitionId String         @map("competition_id")
   sequence      Int
-  type          String
+  type          MatchEventType
   minute        Int
   payload       Json
 
