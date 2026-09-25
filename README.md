@@ -39,6 +39,7 @@ Redis pub/sub → Stream (stream-server.ts, :3001) → SSE to the clients
 | `npm run up:seed`      | Brings the stack up and runs the seed                       |
 | `npm run seed:docker`  | Runs the seed inside Docker                                 |
 | `npm run simulate`     | Drives a live match through the API (`scripts/…`)           |
+| `npm run loadtest:stream` | Load-tests the SSE stream with N concurrent clients (`scripts/…`) |
 | `npm run mcp`          | Starts the MCP server (stdio) for match status              |
 | `npm run mcp:call`     | Invokes an MCP server tool from the terminal (`scripts/…`)  |
 | `npm run logs`         | Follows the `app` service logs                              |
@@ -108,6 +109,36 @@ Syntax: `./scripts/mcp-call.sh <tool> [json-arguments]` (without arguments, it u
 ```bash
 npx @modelcontextprotocol/inspector npm run mcp
 ```
+
+## Load testing the stream
+
+`scripts/load-test-stream.ts` opens N concurrent SSE connections to the same match on the stream server (`:3001`) and measures the read path: connection scalability, time-to-`snapshot`, live-event throughput, **fan-out spread** (gap between the first and last client to receive the same event) and capacity (HTTP `429` once the per-match client cap of 1000 is exceeded). It has no external dependencies (`node:http`).
+
+Two modes:
+
+- **read-only (default)** — only connects the clients; measures connection + snapshot latency. Needs just the stream server up.
+- **`--drive` (self-contained)** — creates a **throwaway match** (its own `loadtest-…` namespace, never touching the seed), drives its **own** events through the ingestion API to exercise the fan-out, and on exit — including on error or Ctrl+C — **deletes everything it created** in Postgres and Redis. No dependency on `npm run simulate`.
+
+**Prerequisite:** read-only needs the stream server (`npm run dev:stream`); `--drive` needs the full stack up (`npm run up`) plus reachable `DATABASE_URL`/`REDIS_URL` (defaults point at the local docker-compose).
+
+```bash
+npm run loadtest:stream                                     # read-only: 200 clients, 20s
+npm run loadtest:stream -- --clients 500 --duration 30 --ramp 5
+npm run loadtest:stream -- --drive --clients 200 --eps 10   # drives + cleans up its own events
+```
+
+| Flag / env                | Default              | Description                                       |
+| ------------------------- | -------------------- | ------------------------------------------------- |
+| `--clients` / `CLIENTS`   | `200`                | Concurrent SSE connections                        |
+| `--duration` / `DURATION` | `20`                 | Test duration in seconds                          |
+| `--ramp` / `RAMP`         | `2`                  | Ramp-up window for the connections (s)            |
+| `--drive` / `DRIVE=1`     | off                  | Drive and then delete the test's own events       |
+| `--eps` / `EPS`           | `5`                  | Events per second in `--drive` mode               |
+| `--match` / `MATCH_ID`    | `wc-2022-semifinal`  | Target match (read-only mode only)                |
+| `--url` / `STREAM_URL`    | `http://localhost:3001` | Stream server base URL                         |
+| `--ingest` / `INGEST_URL` | `http://localhost:3000` | Ingestion server base URL (`--drive`)          |
+
+In `--drive` the target match is always a generated throwaway id (so the cleanup is safe); `--match` only applies to read-only mode.
 
 ## Structure (Clean Architecture)
 

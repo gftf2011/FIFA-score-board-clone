@@ -27,6 +27,7 @@
     "seed:docker": "docker compose run --rm seed",
     "simulate": "bash scripts/simulate-match.sh",
     "stream": "bash scripts/stream-match.sh",
+    "loadtest:stream": "tsx scripts/load-test-stream.ts --drive",
     "logs": "docker compose logs -f app",
     "down": "docker compose down",
     "down:clean": "docker compose down -v"
